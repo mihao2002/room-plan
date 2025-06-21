@@ -352,6 +352,10 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
         // Get color for furniture type
         let color = furnitureColors[furniture.type] ?? .systemGray
         
+        // Use the mesh anchor's transform to get the actual position
+        let meshPosition = meshAnchor.transform.columns.3
+        let actualPosition = SIMD3<Float>(meshPosition.x, meshPosition.y, meshPosition.z)
+        
         // Create a larger, more visible wireframe box
         let mesh = MeshResource.generateBox(size: furniture.dimensions * 1.1) // Make slightly larger
         var material = SimpleMaterial()
@@ -360,7 +364,7 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
         material.roughness = MaterialScalarParameter(0.3)
         
         let entity = ModelEntity(mesh: mesh, materials: [material])
-        entity.position = furniture.position
+        entity.position = actualPosition
         
         // Add wireframe visualization
         let wireframeMesh = MeshResource.generateBox(size: furniture.dimensions * 1.1, cornerRadius: 0.02)
@@ -370,7 +374,7 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
         wireframeMaterial.roughness = MaterialScalarParameter(0.0)
         
         let wireframeEntity = ModelEntity(mesh: wireframeMesh, materials: [wireframeMaterial])
-        wireframeEntity.position = furniture.position
+        wireframeEntity.position = actualPosition
         
         // Add text label
         let textMesh = MeshResource.generateText(furniture.type, extrusionDepth: 0.01, font: .systemFont(ofSize: 0.1))
@@ -380,7 +384,7 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
         textMaterial.roughness = MaterialScalarParameter(0.5)
         
         let textEntity = ModelEntity(mesh: textMesh, materials: [textMaterial])
-        textEntity.position = furniture.position + SIMD3<Float>(0, furniture.dimensions.y * 0.6, 0) // Position above the furniture
+        textEntity.position = actualPosition + SIMD3<Float>(0, furniture.dimensions.y * 0.6, 0) // Position above the furniture
         
         // Add to scene
         let anchorEntity = AnchorEntity()
@@ -392,7 +396,7 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
         // Track the entity
         coloredMeshEntities[furniture.id] = entity
         
-        print("✅ Successfully created colored mesh for \(furniture.type) at \(furniture.position)")
+        print("✅ Successfully created colored mesh for \(furniture.type) at \(actualPosition)")
         print("   - Dimensions: \(furniture.dimensions)")
         print("   - Color: \(furniture.type)")
         print("   - Total entities in scene: \(arView.scene.anchors.count)")
