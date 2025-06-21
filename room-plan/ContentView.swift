@@ -196,7 +196,7 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
         do {
             // 1. Create a MeshDescriptor from the ARMeshGeometry
             var descriptor = MeshDescriptor()
-            let positions = anchor.geometry.vertices.asSIMD3(ofType: Float.self)
+            let positions = anchor.geometry.vertices.asSIMD3(ofType: SIMD3<Float>.self)
             descriptor.positions = .init(positions)
             let indices = anchor.geometry.faces.asUInt32()
             descriptor.primitives = .triangles(indices)
