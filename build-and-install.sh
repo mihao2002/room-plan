@@ -22,6 +22,9 @@ fi
 
 echo "📱 Using device: $DEVICE_ID"
 
+echo "📥 Pulling latest changes..."
+git pull
+
 # === BUILD ===
 echo "🚧 Building the app..."
 xcodebuild \
