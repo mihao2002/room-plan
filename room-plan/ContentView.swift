@@ -286,18 +286,24 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
 class FurnitureDetector {
     
     func detectFurniture(from meshAnchor: ARMeshAnchor) -> FurnitureItem? {
-        let vertices = Array(meshAnchor.geometry.vertices)
-        let faces = Array(meshAnchor.geometry.faces)
+        let vertices = meshAnchor.geometry.vertices
+        let faces = meshAnchor.geometry.faces
         
         guard vertices.count > 10 else { return nil } // Too small to be furniture
         
+        // Convert vertices to array using stride
+        let vertexArray = Array(UnsafeBufferPointer(
+            start: vertices.pointer.assumingMemoryBound(to: SIMD3<Float>.self),
+            count: vertices.count
+        ))
+        
         // Calculate bounding box
-        let minX = vertices.map { $0.x }.min() ?? 0
-        let maxX = vertices.map { $0.x }.max() ?? 0
-        let minY = vertices.map { $0.y }.min() ?? 0
-        let maxY = vertices.map { $0.y }.max() ?? 0
-        let minZ = vertices.map { $0.z }.min() ?? 0
-        let maxZ = vertices.map { $0.z }.max() ?? 0
+        let minX = vertexArray.map { $0.x }.min() ?? 0
+        let maxX = vertexArray.map { $0.x }.max() ?? 0
+        let minY = vertexArray.map { $0.y }.min() ?? 0
+        let maxY = vertexArray.map { $0.y }.max() ?? 0
+        let minZ = vertexArray.map { $0.z }.min() ?? 0
+        let maxZ = vertexArray.map { $0.z }.max() ?? 0
         
         let width = maxX - minX
         let height = maxY - minY
@@ -307,11 +313,16 @@ class FurnitureDetector {
         let dimensions = SIMD3<Float>(width, height, depth)
         
         // Analyze surface normals for horizontal vs vertical surfaces
-        let normals = Array(meshAnchor.geometry.normals)
+        let normals = meshAnchor.geometry.normals
+        let normalArray = Array(UnsafeBufferPointer(
+            start: normals.pointer.assumingMemoryBound(to: SIMD3<Float>.self),
+            count: normals.count
+        ))
+        
         var horizontalSurfaces = 0
         var verticalSurfaces = 0
         
-        for normal in normals {
+        for normal in normalArray {
             if abs(normal.y) > 0.8 { // Mostly vertical
                 verticalSurfaces += 1
             } else if abs(normal.y) < 0.2 { // Mostly horizontal
@@ -324,7 +335,7 @@ class FurnitureDetector {
             dimensions: dimensions,
             horizontalSurfaces: horizontalSurfaces,
             verticalSurfaces: verticalSurfaces,
-            vertexCount: vertices.count
+            vertexCount: vertexArray.count
         )
         
         if let type = furnitureType {
@@ -332,7 +343,7 @@ class FurnitureDetector {
                 dimensions: dimensions,
                 horizontalSurfaces: horizontalSurfaces,
                 verticalSurfaces: verticalSurfaces,
-                vertexCount: vertices.count
+                vertexCount: vertexArray.count
             )
             
             return FurnitureItem(
