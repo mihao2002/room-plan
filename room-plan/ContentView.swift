@@ -8,6 +8,9 @@ class ViewModel: ObservableObject {
     @Published var debugInfo: String = "Initializing..."
     @Published var meshCount: Int = 0
     @Published var detectedFurniture: [FurnitureItem] = []
+    
+    private var lastDetectionTime: Date = Date.distantPast
+    private let detectionCooldown: TimeInterval = 2.0 // 2 seconds between detections
 
     func start() {
         isScanning = true
@@ -44,11 +47,25 @@ class ViewModel: ObservableObject {
     }
     
     func addDetectedFurniture(_ furniture: FurnitureItem) {
+        let now = Date()
+        guard now.timeIntervalSince(lastDetectionTime) > detectionCooldown else {
+            print("⏰ Detection cooldown active, skipping...")
+            return
+        }
+        
         DispatchQueue.main.async {
             if !self.detectedFurniture.contains(where: { $0.id == furniture.id }) {
                 self.detectedFurniture.append(furniture)
+                self.lastDetectionTime = now
                 print("🪑 Detected furniture: \(furniture.type) at \(furniture.position)")
             }
+        }
+    }
+    
+    func clearDetectedFurniture() {
+        DispatchQueue.main.async {
+            self.detectedFurniture.removeAll()
+            print("🗑️ Cleared all detected furniture")
         }
     }
 }
@@ -259,7 +276,26 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
     private func analyzeMeshForFurniture(_ meshAnchor: ARMeshAnchor) {
         let furniture = furnitureDetector.detectFurniture(from: meshAnchor)
         if let furniture = furniture {
-            viewModel.addDetectedFurniture(furniture)
+            // Check if this furniture is too close to existing ones to avoid duplicates
+            let isDuplicate = viewModel.detectedFurniture.contains { existingFurniture in
+                let distance = sqrt(
+                    pow(existingFurniture.position.x - furniture.position.x, 2) +
+                    pow(existingFurniture.position.y - furniture.position.y, 2) +
+                    pow(existingFurniture.position.z - furniture.position.z, 2)
+                )
+                return distance < 0.5 // 50cm threshold for duplicates
+            }
+            
+            if !isDuplicate {
+                // Limit total furniture count to prevent excessive detections
+                if viewModel.detectedFurniture.count < 10 {
+                    viewModel.addDetectedFurniture(furniture)
+                } else {
+                    // Clear old detections if we have too many
+                    viewModel.clearDetectedFurniture()
+                    viewModel.addDetectedFurniture(furniture)
+                }
+            }
         }
     }
     
