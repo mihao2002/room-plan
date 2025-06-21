@@ -69,9 +69,14 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            // Use RoomCaptureView for furniture detection
-            RoomScanView(viewModel: vm)
+            // ARView for camera feed (always visible)
+            ARCameraView()
                 .ignoresSafeArea()
+            
+            // Invisible RoomCaptureView for furniture detection
+            RoomScanView(viewModel: vm)
+                .allowsHitTesting(false) // Make it non-interactive
+                .opacity(0.01) // Nearly invisible but still active
 
             // Debug overlay
             VStack {
@@ -150,6 +155,26 @@ struct ContentView: View {
     }
 }
 
+// ARView for camera feed
+struct ARCameraView: UIViewRepresentable {
+    func makeUIView(context: Context) -> ARView {
+        let arView = ARView(frame: .zero)
+        
+        // Configure AR session for basic camera feed
+        let configuration = ARWorldTrackingConfiguration()
+        configuration.planeDetection = [.horizontal, .vertical]
+        
+        arView.session.run(configuration)
+        
+        print("🟢 ARView created for camera feed")
+        return arView
+    }
+
+    func updateUIView(_ uiView: ARView, context: Context) {
+        // No updates needed
+    }
+}
+
 struct RoomScanView: UIViewRepresentable {
     @ObservedObject var viewModel: ViewModel
 
@@ -165,7 +190,7 @@ struct RoomScanView: UIViewRepresentable {
         view.isOpaque = false
         view.backgroundColor = .clear
         
-        print("🟢 RoomCaptureView created")
+        print("🟢 RoomCaptureView created for furniture detection")
         return view
     }
 
