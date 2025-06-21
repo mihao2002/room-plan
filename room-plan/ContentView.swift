@@ -158,7 +158,7 @@ struct ARCameraView: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> ARView {
-        let arView = ARView(frame: .zero)
+        let arView = ARView(frame: UIScreen.main.bounds)
         arView.session.delegate = context.coordinator
         
         // Configure AR session for basic camera feed
@@ -166,14 +166,18 @@ struct ARCameraView: UIViewRepresentable {
         configuration.planeDetection = [.horizontal, .vertical]
         configuration.environmentTexturing = .automatic
         
+        // Ensure the view is properly configured
+        arView.isOpaque = true
+        arView.backgroundColor = .systemRed // Temporary color to see if view is visible
+        
         arView.session.run(configuration)
         
-        print("🟢 ARView created for camera feed")
+        print("🟢 ARView created for camera feed with frame: \(arView.frame)")
         return arView
     }
 
     func updateUIView(_ uiView: ARView, context: Context) {
-        print("🔄 ARView updated")
+        print("🔄 ARView updated with frame: \(uiView.frame)")
     }
 }
 
