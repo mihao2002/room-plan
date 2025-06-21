@@ -7,7 +7,7 @@ set -e
 
 # Set your scheme and optional destination (edit as needed)
 SCHEME="room-plan"  # <-- Replace with your scheme name
-DEFAULT_SIMULATOR="platform=iOS Simulator,name=iPhone 14"
+DEFAULT_SIMULATOR="platform=iOS Simulator,name=iPhone 16"
 
 DEVICE_ID=$1
 
@@ -30,11 +30,7 @@ echo "🛠️  Building $SCHEME ..."
 # Run xcodebuild and capture full output
 BUILD_OUTPUT=$(mktemp)
 
-#xcodebuild -scheme "$SCHEME" -destination "id=$DEVICE_ID" clean build 2>&1 | tee "$BUILD_OUTPUT"
-xcodebuild \
-  -scheme "room-plan" \
-  -destination 'platform=iOS Simulator,name=iPhone 16' \
-  clean build
+xcodebuild -scheme "$SCHEME" -destination "id=$DEVICE_ID" clean build 2>&1 | tee "$BUILD_OUTPUT"
 
 # Extract only errors to build.log
 grep -i "error" "$BUILD_OUTPUT" > "$LOGFILE"
