@@ -9,7 +9,11 @@ DERIVED_DATA_PATH="$PROJECT_DIR/build"
 BUILD_CONFIG="Debug"
 
 # Automatically get first connected iPhone's ID
-DEVICE_ID=$(xcrun xctrace list devices | grep -v Simulator | grep -m 1 -oE '\([A-F0-9-]+\)' | tr -d '()')
+DEVICE_ID=$(xcrun xctrace list devices \
+  | grep -E 'iphone|iPad' \
+  | grep -v Simulator \
+  | head -n 1 \
+  | sed -E 's/.*\(([0-9A-F-]+)\).*/\1/')
 
 if [ -z "$DEVICE_ID" ]; then
   echo "❌ No physical iPhone connected. Please connect a device via USB."
