@@ -317,21 +317,33 @@ class FurnitureDetector {
         var horizontalSurfaces = 0
         var verticalSurfaces = 0
         
-        // Safely access normals if available
+        // Temporarily disable normal analysis to avoid crashes
+        // TODO: Re-enable when buffer access issues are resolved
+        /*
         if normals.count > 0 {
-            let normalArray = Array(UnsafeBufferPointer(
-                start: normals.buffer.contents().assumingMemoryBound(to: SIMD3<Float>.self),
-                count: normals.count
-            ))
-            
-            for normal in normalArray {
-                if abs(normal.y) > 0.8 { // Mostly vertical
-                    verticalSurfaces += 1
-                } else if abs(normal.y) < 0.2 { // Mostly horizontal
-                    horizontalSurfaces += 1
+            // Use a safer approach with error handling
+            do {
+                let normalBuffer = normals.buffer
+                if normalBuffer.length > 0 {
+                    let normalArray = Array(UnsafeBufferPointer(
+                        start: normalBuffer.contents().assumingMemoryBound(to: SIMD3<Float>.self),
+                        count: normals.count
+                    ))
+                    
+                    for normal in normalArray {
+                        if abs(normal.y) > 0.8 { // Mostly vertical
+                            verticalSurfaces += 1
+                        } else if abs(normal.y) < 0.2 { // Mostly horizontal
+                            horizontalSurfaces += 1
+                        }
+                    }
                 }
+            } catch {
+                // If normal analysis fails, continue without it
+                print("⚠️ Normal analysis failed, continuing without surface analysis")
             }
         }
+        */
         
         // Classify based on dimensions and surface analysis
         let furnitureType = classifyFurniture(
