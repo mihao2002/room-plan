@@ -299,7 +299,7 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
         // Create a semi-transparent box for the furniture volume
         let boxMesh = MeshResource.generateBox(size: furniture.dimensions)
         var boxMaterial = SimpleMaterial()
-        boxMaterial.baseColor = Material.Color.init(uiColor: color.withAlphaComponent(0.4))
+        boxMaterial.baseColor = .color(color.withAlphaComponent(0.4))
         boxMaterial.metallic = .float(0.5)
         boxMaterial.roughness = .float(0.5)
         let boxEntity = ModelEntity(mesh: boxMesh, materials: [boxMaterial])

@@ -11,26 +11,26 @@ class RoomScanCoordinator: NSObject, ARSessionDelegate {
         print("🟢 RoomScanCoordinator initialized")
     }
 
-    func session(_ session: ARSession, didUpdate frame: ARFrame) {
+    nonisolated func session(_ session: ARSession, didUpdate frame: ARFrame) {
         // Update debug info
         DispatchQueue.main.async {
             self.viewModel.setDebugInfo("Camera frame updated")
         }
     }
     
-    func session(_ session: ARSession, didFailWithError error: Error) {
+    nonisolated func session(_ session: ARSession, didFailWithError error: Error) {
         DispatchQueue.main.async {
             self.viewModel.setError(error.localizedDescription)
         }
     }
     
-    func sessionWasInterrupted(_ session: ARSession) {
+    nonisolated func sessionWasInterrupted(_ session: ARSession) {
         DispatchQueue.main.async {
             self.viewModel.setDebugInfo("AR Session interrupted")
         }
     }
     
-    func sessionInterruptionEnded(_ session: ARSession) {
+    nonisolated func sessionInterruptionEnded(_ session: ARSession) {
         DispatchQueue.main.async {
             self.viewModel.setDebugInfo("AR Session resumed")
         }
