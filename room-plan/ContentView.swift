@@ -2,6 +2,7 @@ import SwiftUI
 import RoomPlan
 import RealityKit
 import ARKit
+import AVFoundation
 
 class ViewModel: ObservableObject {
     @Published var detectedObjects: [CapturedRoom.Object] = []
@@ -12,14 +13,14 @@ class ViewModel: ObservableObject {
     func start() {
         isScanning = true
         errorMessage = nil
-        debugInfo = "Starting AR session..."
-        print("🟢 Starting AR session...")
+        debugInfo = "Starting camera session..."
+        print("🟢 Starting camera session...")
     }
 
     func stop() {
         isScanning = false
         debugInfo = "Stopped"
-        print("🔴 Stopping AR session...")
+        print("🔴 Stopping camera session...")
     }
 
     func updateDetectedObjects(_ objects: [CapturedRoom.Object]) {
@@ -68,8 +69,8 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            // ARView for camera feed (always visible)
-            ARCameraView(viewModel: vm)
+            // Simple camera view for testing
+            CameraTestView(viewModel: vm)
                 .ignoresSafeArea()
 
             // Debug overlay
@@ -149,75 +150,47 @@ struct ContentView: View {
     }
 }
 
-// ARView for camera feed
-struct ARCameraView: UIViewRepresentable {
+// Simple camera test view
+struct CameraTestView: UIViewRepresentable {
     @ObservedObject var viewModel: ViewModel
 
-    func makeCoordinator() -> ARCameraCoordinator {
-        ARCameraCoordinator(viewModel: viewModel)
+    func makeCoordinator() -> CameraTestCoordinator {
+        CameraTestCoordinator(viewModel: viewModel)
     }
 
-    func makeUIView(context: Context) -> ARView {
-        let arView = ARView(frame: UIScreen.main.bounds)
-        arView.session.delegate = context.coordinator
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: UIScreen.main.bounds)
+        view.backgroundColor = .systemGreen // Test color to see if view is visible
         
-        // Configure AR session for basic camera feed
-        let configuration = ARWorldTrackingConfiguration()
-        configuration.planeDetection = [.horizontal, .vertical]
-        configuration.environmentTexturing = .automatic
+        // Add a simple label to confirm the view is working
+        let label = UILabel()
+        label.text = "Camera Test View"
+        label.textColor = .white
+        label.textAlignment = .center
+        label.frame = CGRect(x: 0, y: 100, width: view.frame.width, height: 50)
+        view.addSubview(label)
         
-        // Ensure the view is properly configured
-        arView.isOpaque = true
-        arView.backgroundColor = .systemRed // Temporary color to see if view is visible
-        
-        arView.session.run(configuration)
-        
-        print("🟢 ARView created for camera feed with frame: \(arView.frame)")
-        return arView
+        print("🟢 CameraTestView created with frame: \(view.frame)")
+        return view
     }
 
-    func updateUIView(_ uiView: ARView, context: Context) {
-        print("🔄 ARView updated with frame: \(uiView.frame)")
+    func updateUIView(_ uiView: UIView, context: Context) {
+        print("🔄 CameraTestView updated with frame: \(uiView.frame)")
     }
 }
 
-class ARCameraCoordinator: NSObject, ARSessionDelegate {
+class CameraTestCoordinator: NSObject {
     let viewModel: ViewModel
     private var roomCaptureView: RoomCaptureView?
     
     init(viewModel: ViewModel) {
         self.viewModel = viewModel
         super.init()
-        print("🟢 ARCameraCoordinator initialized")
-    }
-    
-    func session(_ session: ARSession, didUpdate frame: ARFrame) {
-        // This confirms the camera is working
-        DispatchQueue.main.async {
-            self.viewModel.setDebugInfo("Camera frame updated")
-        }
+        print("🟢 CameraTestCoordinator initialized")
         
-        // Start RoomPlan scanning if not already started
-        if roomCaptureView == nil {
-            startRoomPlanScanning()
-        }
-    }
-    
-    func session(_ session: ARSession, didFailWithError error: Error) {
-        DispatchQueue.main.async {
-            self.viewModel.setError(error.localizedDescription)
-        }
-    }
-    
-    func sessionWasInterrupted(_ session: ARSession) {
-        DispatchQueue.main.async {
-            self.viewModel.setDebugInfo("AR Session interrupted")
-        }
-    }
-    
-    func sessionInterruptionEnded(_ session: ARSession) {
-        DispatchQueue.main.async {
-            self.viewModel.setDebugInfo("AR Session resumed")
+        // Start RoomPlan scanning immediately
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            self.startRoomPlanScanning()
         }
     }
     
