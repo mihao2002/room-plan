@@ -117,7 +117,6 @@ struct ARMeshView: UIViewRepresentable {
         let arView = ARView(frame: .zero)
         arView.session.delegate = context.coordinator
         
-        // Pass ARView reference to coordinator
         context.coordinator.setARView(arView)
         
         // Configure AR session for mesh generation
@@ -125,20 +124,15 @@ struct ARMeshView: UIViewRepresentable {
         configuration.planeDetection = [.horizontal, .vertical]
         configuration.environmentTexturing = .automatic
         
-        // Enable mesh generation if available
         if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
             configuration.sceneReconstruction = .mesh
-            print("✅ Scene reconstruction with mesh enabled")
-        } else {
-            print("⚠️ Scene reconstruction with mesh not supported")
         }
         
         arView.session.run(configuration)
         
-        // Disable default mesh visualization to see our colored furniture meshes
-        arView.debugOptions = [] // Remove .showSceneUnderstanding
+        // Re-enable default mesh visualization to compare with our custom one
+        arView.debugOptions = [.showSceneUnderstanding]
         
-        print("🟢 ARMeshView created")
         return arView
     }
 
@@ -151,7 +145,8 @@ struct ARMeshView: UIViewRepresentable {
 class ARMeshCoordinator: NSObject, ARSessionDelegate {
     @ObservedObject var viewModel: ViewModel
     private weak var arView: ARView?
-    private var meshEntities: [UUID: ModelEntity] = [:]
+    // Store the AnchorEntity to properly remove it from the scene later
+    private var meshEntities: [UUID: AnchorEntity] = [:]
 
     init(viewModel: ViewModel) {
         self.viewModel = viewModel
@@ -180,8 +175,8 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
     
     func session(_ session: ARSession, didRemove anchors: [ARAnchor]) {
         for anchor in anchors {
-            if let meshAnchor = anchor as? ARMeshAnchor {
-                meshEntities[meshAnchor.identifier]?.removeFromParent()
+            if let meshAnchor = anchor as? ARMeshAnchor, let existingAnchor = meshEntities[meshAnchor.identifier] {
+                arView?.scene.removeAnchor(existingAnchor)
                 meshEntities.removeValue(forKey: meshAnchor.identifier)
             }
         }
@@ -190,35 +185,37 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
     private func updateMesh(anchor: ARMeshAnchor) {
         guard let arView = arView else { return }
 
-        // Remove old entity if it exists
-        meshEntities[anchor.identifier]?.removeFromParent()
+        // Remove old anchor entity if it exists
+        if let existingAnchor = meshEntities[anchor.identifier] {
+            arView.scene.removeAnchor(existingAnchor)
+        }
 
         do {
             // 1. Create a MeshDescriptor from the ARMeshGeometry
             var descriptor = MeshDescriptor(name: "custom")
-            
             let positions = anchor.geometry.vertices.asSIMD3(ofType: SIMD3<Float>.self)
             descriptor.positions = MeshBuffers.Positions(positions)
-            
             let indices = anchor.geometry.faces.asUInt32()
             descriptor.primitives = .triangles(indices)
 
             // 2. Create a MeshResource from the descriptor
             let meshResource = try MeshResource.generate(from: [descriptor])
 
-            // 3. Create a wireframe material to see the triangle structure
-            var material = UnlitMaterial()
-            material.baseColor = .color(.cyan)
-            material.fillMode = .lines
+            // 3. Create a solid red material to compare with the default mesh
+            var material = SimpleMaterial()
+            material.baseColor = .color(.red)
             
-            // 4. Create a ModelEntity and place it in the scene
+            // 4. Create a ModelEntity and scale it down slightly
             let modelEntity = ModelEntity(mesh: meshResource, materials: [material])
+            modelEntity.scale *= 0.99 // Make it slightly smaller to see inside default mesh
+            
+            // 5. Create a new AnchorEntity to hold the model
             let anchorEntity = AnchorEntity(world: anchor.transform)
             anchorEntity.addChild(modelEntity)
             arView.scene.addAnchor(anchorEntity)
 
-            // 5. Store the new entity
-            meshEntities[anchor.identifier] = modelEntity
+            // 6. Store the new anchor entity
+            meshEntities[anchor.identifier] = anchorEntity
             
         } catch {
             print("❌ Error creating mesh for anchor \(anchor.identifier): \(error)")
