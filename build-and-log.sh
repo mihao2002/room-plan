@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Usage: ./build_and_log.sh [device_id]
+# Usage: ./build_and_log.sh [device_id] [keychain_password]
 
 # Fail fast on any error
 set -e
@@ -17,6 +17,8 @@ else
   DESTINATION="$DEFAULT_SIMULATOR"
 fi
 
+YOUR_KEYCHAIN_PASSWORD=$2
+
 echo "Using destination: $DESTINATION"
 
 # Output file
@@ -26,6 +28,7 @@ echo "📥 Pulling latest changes..."
 git pull
 
 echo "🛠️  Building $SCHEME ..."
+security unlock-keychain -p YOUR_KEYCHAIN_PASSWORD ~/Library/Keychains/login.keychain-db
 xcodebuild -scheme "$SCHEME" -destination "$DESTINATION" clean build | tee "$LOGFILE"
 
 echo "✅ Done. Log saved to $LOGFILE"
