@@ -195,9 +195,11 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
 
         do {
             // 1. Create a MeshDescriptor from the ARMeshGeometry
-            var descriptor = MeshDescriptor()
+            var descriptor = MeshDescriptor(name: "custom")
+            
             let positions = anchor.geometry.vertices.asSIMD3(ofType: SIMD3<Float>.self)
-            descriptor.positions = .init(positions)
+            descriptor.positions = MeshBuffers.Positions(positions)
+            
             let indices = anchor.geometry.faces.asUInt32()
             descriptor.primitives = .triangles(indices)
 
@@ -243,8 +245,23 @@ extension SIMD3: SIMD3Initializable where Scalar == Float {
 
 extension ARGeometryElement {
     func asUInt32() -> [UInt32] {
-        let buffer = self.buffer.contents().assumingMemoryBound(to: UInt32.self)
-        let bufferPointer = UnsafeBufferPointer(start: buffer, count: self.count * self.indexCountPerPrimitive)
-        return Array(bufferPointer)
+        let count = self.count * self.indexCountPerPrimitive
+        let buffer = self.buffer
+
+        // ARKit can provide indices in 16-bit or 32-bit format.
+        // We need to handle both and convert to the UInt32 format
+        // required by MeshDescriptor.
+        if self.bytesPerIndex == 4 {
+            let pointer = buffer.contents().assumingMemoryBound(to: UInt32.self)
+            let bufferPointer = UnsafeBufferPointer(start: pointer, count: count)
+            return Array(bufferPointer)
+        } else if self.bytesPerIndex == 2 {
+            let pointer = buffer.contents().assumingMemoryBound(to: UInt16.self)
+            let bufferPointer = UnsafeBufferPointer(start: pointer, count: count)
+            return bufferPointer.map { UInt32($0) }
+        } else {
+            // This case should not be reached for triangle meshes from ARKit.
+            return []
+        }
     }
 }
