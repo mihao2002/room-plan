@@ -291,6 +291,9 @@ class FurnitureDetector {
         
         guard vertices.count > 10 else { return nil } // Too small to be furniture
         
+        // Temporarily disable vertex analysis to avoid crashes
+        // TODO: Re-enable when buffer access issues are resolved
+        /*
         // Safely convert vertices to array
         let vertexArray = Array(UnsafeBufferPointer(
             start: vertices.buffer.contents().assumingMemoryBound(to: SIMD3<Float>.self),
@@ -311,6 +314,18 @@ class FurnitureDetector {
         
         let center = SIMD3<Float>((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2)
         let dimensions = SIMD3<Float>(width, height, depth)
+        */
+        
+        // Use simplified detection based on vertex count and mesh anchor properties
+        let vertexCount = vertices.count
+        let faceCount = faces.count
+        
+        // Estimate dimensions based on vertex count and face count
+        let estimatedVolume = Float(vertexCount) * 0.001 // Rough estimation
+        let estimatedDimension = pow(estimatedVolume, 1.0/3.0) // Cube root for rough size
+        
+        let center = SIMD3<Float>(0, 0, 0) // Use origin as center
+        let dimensions = SIMD3<Float>(estimatedDimension, estimatedDimension, estimatedDimension)
         
         // Analyze surface normals for horizontal vs vertical surfaces
         let normals = meshAnchor.geometry.normals
@@ -350,7 +365,7 @@ class FurnitureDetector {
             dimensions: dimensions,
             horizontalSurfaces: horizontalSurfaces,
             verticalSurfaces: verticalSurfaces,
-            vertexCount: vertexArray.count
+            vertexCount: vertexCount
         )
         
         if let type = furnitureType {
@@ -358,7 +373,7 @@ class FurnitureDetector {
                 dimensions: dimensions,
                 horizontalSurfaces: horizontalSurfaces,
                 verticalSurfaces: verticalSurfaces,
-                vertexCount: vertexArray.count
+                vertexCount: vertexCount
             )
             
             return FurnitureItem(
