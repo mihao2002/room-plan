@@ -72,6 +72,11 @@ struct ContentView: View {
             // Camera view with AVFoundation
             CameraView(viewModel: vm)
                 .ignoresSafeArea()
+            
+            // Invisible RoomCaptureView for furniture detection
+            RoomScanView(viewModel: vm)
+                .allowsHitTesting(false)
+                .opacity(0.01) // Nearly invisible but still active
 
             // Debug overlay
             VStack {
@@ -185,11 +190,35 @@ struct CameraView: UIViewRepresentable {
     }
 }
 
+// RoomPlan scanning view
+struct RoomScanView: UIViewRepresentable {
+    @ObservedObject var viewModel: ViewModel
+
+    func makeCoordinator() -> RoomScanCoordinator {
+        RoomScanCoordinator(viewModel: viewModel)
+    }
+
+    func makeUIView(context: Context) -> RoomCaptureView {
+        let view = RoomCaptureView()
+        view.delegate = context.coordinator
+        
+        // Configure RoomCaptureView for scanning
+        view.isOpaque = false
+        view.backgroundColor = .clear
+        
+        print("🟢 RoomCaptureView created for scanning")
+        return view
+    }
+
+    func updateUIView(_ uiView: RoomCaptureView, context: Context) {
+        print("🔄 RoomCaptureView updated")
+    }
+}
+
 class CameraCoordinator: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     let viewModel: ViewModel
     var previewLayer: AVCaptureVideoPreviewLayer?
     private var captureSession: AVCaptureSession?
-    private var roomCaptureView: RoomCaptureView?
     
     init(viewModel: ViewModel) {
         self.viewModel = viewModel
@@ -231,11 +260,6 @@ class CameraCoordinator: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate 
                 DispatchQueue.main.async {
                     self.viewModel.setDebugInfo("Camera session started")
                 }
-                
-                // Start RoomPlan scanning after camera is ready
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                    self.startRoomPlanScanning()
-                }
             }
             
         } catch {
@@ -247,23 +271,6 @@ class CameraCoordinator: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate 
         // Camera is working - update debug info occasionally
         DispatchQueue.main.async {
             self.viewModel.setDebugInfo("Camera feed active")
-        }
-    }
-    
-    private func startRoomPlanScanning() {
-        guard roomCaptureView == nil else { return }
-        
-        DispatchQueue.main.async {
-            // Create RoomCaptureView in background for scanning
-            let roomView = RoomCaptureView()
-            let coordinator = RoomScanCoordinator(viewModel: self.viewModel)
-            roomView.delegate = coordinator
-            
-            // Keep a reference to prevent deallocation
-            self.roomCaptureView = roomView
-            
-            self.viewModel.setDebugInfo("RoomPlan scanning started")
-            print("🎥 RoomPlan scanning started")
         }
     }
 }
