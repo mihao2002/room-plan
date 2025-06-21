@@ -214,8 +214,8 @@ struct ARMeshView: UIViewRepresentable {
         
         arView.session.run(configuration)
         
-        // Enable mesh visualization
-        arView.debugOptions = [.showSceneUnderstanding]
+        // Disable default mesh visualization to see our colored furniture meshes
+        arView.debugOptions = [] // Remove .showSceneUnderstanding
         
         print("🟢 ARMeshView created")
         return arView
@@ -342,19 +342,41 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
         // Get color for furniture type
         let color = furnitureColors[furniture.type] ?? .systemGray
         
-        // Create a simple colored cube at the furniture position
-        let mesh = MeshResource.generateBox(size: furniture.dimensions)
+        // Create a larger, more visible wireframe box
+        let mesh = MeshResource.generateBox(size: furniture.dimensions * 1.1) // Make slightly larger
         var material = SimpleMaterial()
-        material.baseColor = MaterialColorParameter.color(color)
+        material.baseColor = MaterialColorParameter.color(color.withAlphaComponent(0.7)) // Add transparency
         material.metallic = MaterialScalarParameter(0.0)
-        material.roughness = MaterialScalarParameter(0.5)
+        material.roughness = MaterialScalarParameter(0.3)
         
         let entity = ModelEntity(mesh: mesh, materials: [material])
         entity.position = furniture.position
         
+        // Add wireframe visualization
+        let wireframeMesh = MeshResource.generateBox(size: furniture.dimensions * 1.1, cornerRadius: 0.02)
+        var wireframeMaterial = SimpleMaterial()
+        wireframeMaterial.baseColor = MaterialColorParameter.color(color)
+        wireframeMaterial.metallic = MaterialScalarParameter(1.0)
+        wireframeMaterial.roughness = MaterialScalarParameter(0.0)
+        
+        let wireframeEntity = ModelEntity(mesh: wireframeMesh, materials: [wireframeMaterial])
+        wireframeEntity.position = furniture.position
+        
+        // Add text label
+        let textMesh = MeshResource.generateText(furniture.type, extrusionDepth: 0.01, font: .systemFont(ofSize: 0.1))
+        var textMaterial = SimpleMaterial()
+        textMaterial.baseColor = MaterialColorParameter.color(.white)
+        textMaterial.metallic = MaterialScalarParameter(0.0)
+        textMaterial.roughness = MaterialScalarParameter(0.5)
+        
+        let textEntity = ModelEntity(mesh: textMesh, materials: [textMaterial])
+        textEntity.position = furniture.position + SIMD3<Float>(0, furniture.dimensions.y * 0.6, 0) // Position above the furniture
+        
         // Add to scene
         let anchorEntity = AnchorEntity()
         anchorEntity.addChild(entity)
+        anchorEntity.addChild(wireframeEntity)
+        anchorEntity.addChild(textEntity)
         arView.scene.addAnchor(anchorEntity)
         
         // Track the entity
