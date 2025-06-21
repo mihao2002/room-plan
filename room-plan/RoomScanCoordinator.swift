@@ -1,10 +1,8 @@
 import Foundation
-import RoomPlan
+import ARKit
 
 @MainActor
-class RoomScanCoordinator: NSObject, RoomCaptureViewDelegate, NSSecureCoding {
-    static var supportsSecureCoding: Bool { true }
-
+class RoomScanCoordinator: NSObject, ARSessionDelegate {
     let viewModel: ViewModel
 
     init(viewModel: ViewModel) {
@@ -13,33 +11,28 @@ class RoomScanCoordinator: NSObject, RoomCaptureViewDelegate, NSSecureCoding {
         print("🟢 RoomScanCoordinator initialized")
     }
 
-    required convenience init?(coder: NSCoder) {
-        // You can return nil or inject a dummy ViewModel if needed
-        self.init(viewModel: ViewModel())
+    func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        // Update debug info
+        DispatchQueue.main.async {
+            self.viewModel.setDebugInfo("Camera frame updated")
+        }
     }
-
-    func encode(with coder: NSCoder) {
-        // No-op – nothing to encode
+    
+    func session(_ session: ARSession, didFailWithError error: Error) {
+        DispatchQueue.main.async {
+            self.viewModel.setError(error.localizedDescription)
+        }
     }
-
-    func captureView(_ captureView: RoomCaptureView, didUpdate room: CapturedRoom) {
-         print("✅ Room updated - detected objects count: \(room.objects.count)")
-         print("📊 Room details: openings=\(room.openings.count)")
-         viewModel.updateDetectedObjects(room.objects)
-     }
-
-     func captureView(_ captureView: RoomCaptureView, didFail error: Error) {
-         print("❌ Room capture failed: \(error.localizedDescription)")
-         viewModel.setError(error.localizedDescription)
-     }
-     
-     func captureViewDidStart(_ captureView: RoomCaptureView) {
-         print("🎥 RoomCaptureView did start")
-         viewModel.setDebugInfo("RoomPlan scanning started")
-     }
-     
-     func captureViewDidStop(_ captureView: RoomCaptureView) {
-         print("🛑 RoomCaptureView did stop")
-         viewModel.setDebugInfo("RoomPlan scanning stopped")
-     }
+    
+    func sessionWasInterrupted(_ session: ARSession) {
+        DispatchQueue.main.async {
+            self.viewModel.setDebugInfo("AR Session interrupted")
+        }
+    }
+    
+    func sessionInterruptionEnded(_ session: ARSession) {
+        DispatchQueue.main.async {
+            self.viewModel.setDebugInfo("AR Session resumed")
+        }
+    }
 }
