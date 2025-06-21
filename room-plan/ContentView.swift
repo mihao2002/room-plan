@@ -7,36 +7,28 @@ class ViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var debugInfo: String = "Initializing..."
     @Published var meshCount: Int = 0
-    @Published var detectedFurniture: [FurnitureItem] = []
-    
-    private var lastDetectionTime: Date = Date.distantPast
-    private let detectionCooldown: TimeInterval = 2.0 // 2 seconds between detections
 
     func start() {
         isScanning = true
         errorMessage = nil
         debugInfo = "Starting AR session..."
-        print("🟢 Starting AR session...")
     }
 
     func stop() {
         isScanning = false
         debugInfo = "Stopped"
-        print("🔴 Stopping AR session...")
     }
     
     func setError(_ error: String) {
         DispatchQueue.main.async {
             self.errorMessage = error
             self.debugInfo = "Error: \(error)"
-            print("❌ Error: \(error)")
         }
     }
     
     func setDebugInfo(_ info: String) {
         DispatchQueue.main.async {
             self.debugInfo = info
-            print("ℹ️ \(info)")
         }
     }
     
@@ -45,40 +37,6 @@ class ViewModel: ObservableObject {
             self.meshCount = count
         }
     }
-    
-    func addDetectedFurniture(_ furniture: FurnitureItem) {
-        let now = Date()
-        guard now.timeIntervalSince(lastDetectionTime) > detectionCooldown else {
-            print("⏰ Detection cooldown active, skipping...")
-            return
-        }
-        
-        DispatchQueue.main.async {
-            if !self.detectedFurniture.contains(where: { $0.id == furniture.id }) {
-                self.detectedFurniture.append(furniture)
-                self.lastDetectionTime = now
-                print("🪑 Detected furniture: \(furniture.type) at \(furniture.position)")
-            }
-        }
-    }
-    
-    func clearDetectedFurniture() {
-        DispatchQueue.main.async {
-            self.detectedFurniture.removeAll()
-            print("🗑️ Cleared all detected furniture")
-        }
-    }
-}
-
-struct FurnitureItem: Identifiable {
-    let id = UUID()
-    let type: String
-    let position: SIMD3<Float>
-    let dimensions: SIMD3<Float>
-    let confidence: Float
-    let meshId: UUID
-    let vertexCount: Int
-    let faceCount: Int
 }
 
 struct ContentView: View {
@@ -134,42 +92,6 @@ struct ContentView: View {
                         .padding()
                         .background(Color.black.opacity(0.7))
                         .cornerRadius(8)
-                    
-                    Text("Furniture: \(vm.detectedFurniture.count)")
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Color.black.opacity(0.7))
-                        .cornerRadius(8)
-                    
-                    if !vm.detectedFurniture.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack {
-                                ForEach(vm.detectedFurniture) { furniture in
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(furniture.type)
-                                            .font(.caption)
-                                            .fontWeight(.bold)
-                                        Text("Conf: \(Int(furniture.confidence * 100))%")
-                                            .font(.caption2)
-                                        Text("Mesh: \(furniture.meshId.uuidString.prefix(8))")
-                                            .font(.caption2)
-                                            .foregroundColor(.yellow)
-                                        Text("V: \(furniture.vertexCount), F: \(furniture.faceCount)")
-                                            .font(.caption2)
-                                            .foregroundColor(.cyan)
-                                        Text("Size: \(String(format: "%.1fx%.1fx%.1f", furniture.dimensions.x, furniture.dimensions.y, furniture.dimensions.z))m")
-                                            .font(.caption2)
-                                            .foregroundColor(.green)
-                                    }
-                                    .padding(8)
-                                    .background(Color.black.opacity(0.8))
-                                    .foregroundColor(.white)
-                                    .cornerRadius(8)
-                                }
-                            }
-                            .padding(.horizontal)
-                        }
-                    }
                 }
                 .padding(.bottom, 50)
             }
@@ -225,18 +147,11 @@ struct ARMeshView: UIViewRepresentable {
     }
 }
 
-// AR Coordinator with colored mesh visualization
+// AR Coordinator for manual mesh visualization
 class ARMeshCoordinator: NSObject, ARSessionDelegate {
     @ObservedObject var viewModel: ViewModel
-    private var meshAnchors: [ARMeshAnchor] = []
-    private let furnitureDetector = FurnitureDetector()
-    private var coloredMeshEntities: [UUID: AnchorEntity] = [:] // Track colored meshes by furniture ID
     private weak var arView: ARView?
-    
-    private let furnitureColors: [String: UIColor] = [
-        "Table": .systemRed, "Chair": .systemBlue, "Bed": .systemGreen,
-        "Cabinet": .systemPurple, "Furniture": .systemOrange
-    ]
+    private var meshEntities: [UUID: ModelEntity] = [:]
 
     init(viewModel: ViewModel) {
         self.viewModel = viewModel
@@ -250,9 +165,7 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
     func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
         for anchor in anchors {
             if let meshAnchor = anchor as? ARMeshAnchor {
-                meshAnchors.append(meshAnchor)
-                analyzeMeshForFurniture(meshAnchor)
-                DispatchQueue.main.async { self.viewModel.updateMeshCount(self.meshAnchors.count) }
+                updateMesh(anchor: meshAnchor)
             }
         }
     }
@@ -260,7 +173,7 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
     func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
         for anchor in anchors {
             if let meshAnchor = anchor as? ARMeshAnchor {
-                analyzeMeshForFurniture(meshAnchor)
+                updateMesh(anchor: meshAnchor)
             }
         }
     }
@@ -268,171 +181,70 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
     func session(_ session: ARSession, didRemove anchors: [ARAnchor]) {
         for anchor in anchors {
             if let meshAnchor = anchor as? ARMeshAnchor {
-                meshAnchors.removeAll { $0.identifier == meshAnchor.identifier }
+                meshEntities[meshAnchor.identifier]?.removeFromParent()
+                meshEntities.removeValue(forKey: meshAnchor.identifier)
             }
         }
     }
-    
-    private func analyzeMeshForFurniture(_ meshAnchor: ARMeshAnchor) {
-        guard let furniture = furnitureDetector.detectFurniture(from: meshAnchor) else { return }
-        
-        let isDuplicate = viewModel.detectedFurniture.contains {
-            distance($0.position, furniture.position) < 0.5 // 50cm threshold
-        }
-        
-        if !isDuplicate {
-            DispatchQueue.main.async {
-                if self.viewModel.detectedFurniture.count >= 10 {
-                    self.clearAllFurniture()
-                }
-                self.viewModel.addDetectedFurniture(furniture)
-                self.createColoredMesh(for: furniture)
-            }
-        }
-    }
-    
-    private func createColoredMesh(for furniture: FurnitureItem) {
+
+    private func updateMesh(anchor: ARMeshAnchor) {
         guard let arView = arView else { return }
 
-        // Comprehensive safety check for all floating-point values
-        guard furniture.position.x.isFinite && furniture.position.y.isFinite && furniture.position.z.isFinite &&
-              furniture.dimensions.x.isFinite && furniture.dimensions.y.isFinite && furniture.dimensions.z.isFinite else {
-            print("❌ Invalid float value in furniture data. Pos: \(furniture.position), Dim: \(furniture.dimensions)")
-            return
-        }
+        // Remove old entity if it exists
+        meshEntities[anchor.identifier]?.removeFromParent()
 
-        let avgDimension = (furniture.dimensions.x + furniture.dimensions.y + furniture.dimensions.z) / 3.0
-        let radius = avgDimension / 2.0
-
-        guard radius > 0.05 && radius.isFinite else {
-            print("❌ Invalid radius: \(radius)")
-            return
-        }
-        
         do {
-            let color = furnitureColors[furniture.type] ?? .systemGray
+            // 1. Create a MeshDescriptor from the ARMeshGeometry
+            var descriptor = MeshDescriptor()
+            let positions = anchor.geometry.vertices.asSIMD3(ofType: Float.self)
+            descriptor.positions = .init(positions)
+            let indices = anchor.geometry.faces.asUInt32()
+            descriptor.primitives = .triangles(indices)
 
-            // Create sphere
-            let sphereMesh = try MeshResource.generateSphere(radius: radius)
-            var sphereMaterial = SimpleMaterial()
-            sphereMaterial.baseColor = .color(color.withAlphaComponent(0.4))
-            sphereMaterial.metallic = .float(0.5)
-            sphereMaterial.roughness = .float(0.5)
-            let sphereEntity = ModelEntity(mesh: sphereMesh, materials: [sphereMaterial])
+            // 2. Create a MeshResource from the descriptor
+            let meshResource = try MeshResource.generate(from: [descriptor])
 
-            // Create text
-            let textMesh = try MeshResource.generateText(furniture.type, extrusionDepth: 0.01, font: .systemFont(ofSize: 0.1))
-            var textMaterial = SimpleMaterial()
-            textMaterial.baseColor = .color(.white)
-            let textEntity = ModelEntity(mesh: textMesh, materials: [textMaterial])
-            let textSize = textEntity.visualBounds(relativeTo: nil).extents
-            textEntity.position.x = -textSize.x / 2
-            textEntity.position.y = radius + 0.1
-
-            // Create anchor and add entities
-            let anchorEntity = AnchorEntity(world: furniture.position)
-            anchorEntity.addChild(sphereEntity)
-            anchorEntity.addChild(textEntity)
+            // 3. Create a semi-transparent material
+            var material = SimpleMaterial()
+            material.baseColor = .color(UIColor.systemBlue.withAlphaComponent(0.6))
             
+            // 4. Create a ModelEntity and place it in the scene
+            let modelEntity = ModelEntity(mesh: meshResource, materials: [material])
+            let anchorEntity = AnchorEntity(anchor: anchor)
+            anchorEntity.addChild(modelEntity)
             arView.scene.addAnchor(anchorEntity)
-            coloredMeshEntities[furniture.id] = anchorEntity
 
+            // 5. Store the new entity
+            meshEntities[anchor.identifier] = modelEntity
+            
         } catch {
-            print("❌ Error creating mesh for furniture: \(error)")
+            print("❌ Error creating mesh for anchor \(anchor.identifier): \(error)")
         }
-    }
-    
-    private func clearAllFurniture() {
-        viewModel.detectedFurniture.removeAll()
-        for anchor in coloredMeshEntities.values {
-            arView?.scene.removeAnchor(anchor)
-        }
-        coloredMeshEntities.removeAll()
     }
 }
 
-// Furniture detection logic
-class FurnitureDetector {
-    func detectFurniture(from meshAnchor: ARMeshAnchor) -> FurnitureItem? {
-        let vertices = meshAnchor.geometry.vertices
-        let faces = meshAnchor.geometry.faces
-
-        guard vertices.count > 100, faces.count > 50 else { return nil }
-        guard vertices.buffer.length > 0 else { return nil }
-
-        let vertexPointer = vertices.buffer.contents().assumingMemoryBound(to: SIMD3<Float>.self)
-        let vertexBuffer = UnsafeBufferPointer(start: vertexPointer, count: vertices.count)
-
-        guard let firstVertex = vertexBuffer.first else { return nil }
-        var minVec = firstVertex
-        var maxVec = firstVertex
-
-        for vertex in vertexBuffer.dropFirst() {
-            minVec = min(minVec, vertex)
-            maxVec = max(maxVec, vertex)
-        }
-
-        let dimensions = maxVec - minVec
-        let localCenter = (minVec + maxVec) / 2.0
-        let worldCenter = (meshAnchor.transform * SIMD4<Float>(localCenter, 1)).xyz
-
-        guard dimensions.x > 0.3 && dimensions.y > 0.3 && dimensions.z > 0.1 else { return nil }
-        guard dimensions.x < 3.0 && dimensions.y < 3.0 && dimensions.z < 3.0 else { return nil }
-
-        let vertexCount = vertices.count
-        let faceCount = faces.count
-        var horizontalSurfaces = 0
-        var verticalSurfaces = 0
-        
-        let furnitureType = classifyFurniture(
-            dimensions: dimensions,
-            horizontalSurfaces: horizontalSurfaces,
-            verticalSurfaces: verticalSurfaces,
-            vertexCount: vertexCount
-        )
-
-        if let type = furnitureType {
-            let confidence = calculateConfidence(
-                dimensions: dimensions,
-                horizontalSurfaces: horizontalSurfaces,
-                verticalSurfaces: verticalSurfaces,
-                vertexCount: vertexCount
-            )
-
-            return FurnitureItem(
-                type: type,
-                position: worldCenter,
-                dimensions: dimensions,
-                confidence: confidence,
-                meshId: meshAnchor.identifier,
-                vertexCount: vertexCount,
-                faceCount: faceCount
-            )
-        }
-        return nil
-    }
-
-    private func classifyFurniture(dimensions: SIMD3<Float>, horizontalSurfaces: Int, verticalSurfaces: Int, vertexCount: Int) -> String? {
-        let (width, height, depth) = (dimensions.x, dimensions.y, dimensions.z)
-        if height > 0.6 && height < 1.2 && width > 0.8 && depth > 0.8 { return "Table" }
-        if height > 0.6 && height < 1.1 && width > 0.4 && width < 0.8 && depth > 0.4 && depth < 0.8 { return "Chair" }
-        if height > 0.3 && height < 0.8 && width > 1.2 && depth > 1.8 { return "Bed" }
-        if height > 0.8 && width > 0.6 && depth > 0.4 { return "Cabinet" }
-        if height > 0.5 && width > 0.5 && depth > 0.5 && vertexCount > 200 { return "Furniture" }
-        return nil
-    }
-
-    private func calculateConfidence(dimensions: SIMD3<Float>, horizontalSurfaces: Int, verticalSurfaces: Int, vertexCount: Int) -> Float {
-        var confidence: Float = 0.0
-        confidence += min(Float(vertexCount) / 1000.0, 0.5)
-        let volume = dimensions.x * dimensions.y * dimensions.z
-        if volume > 0.05 && volume < 10.0 {
-            confidence += 0.5
-        }
-        return min(confidence, 1.0)
+// Helper extensions to convert buffer data
+extension ARGeometrySource {
+    func asSIMD3<T: SIMD3Initializable>(ofType: T.Type) -> [T] {
+        let buffer = self.buffer.contents().assumingMemoryBound(to: T.self)
+        let bufferPointer = UnsafeBufferPointer(start: buffer, count: self.count)
+        return Array(bufferPointer)
     }
 }
 
-extension SIMD4 {
-    var xyz: SIMD3<Scalar> { return SIMD3<Scalar>(x, y, z) }
+protocol SIMD3Initializable {
+    init(_: SIMD3<Float>)
+}
+extension SIMD3: SIMD3Initializable where Scalar == Float {
+    init(_ val: SIMD3<Float>) {
+        self = val
+    }
+}
+
+extension ARGeometryElement {
+    func asUInt32() -> [UInt32] {
+        let buffer = self.buffer.contents().assumingMemoryBound(to: UInt32.self)
+        let bufferPointer = UnsafeBufferPointer(start: buffer, count: self.count * self.indexCountPerPrimitive)
+        return Array(bufferPointer)
+    }
 }
