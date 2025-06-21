@@ -17,7 +17,6 @@ else
   DESTINATION="$DEFAULT_SIMULATOR"
 fi
 
-YOUR_KEYCHAIN_PASSWORD=$2
 
 echo "Using destination: $DESTINATION"
 
@@ -28,8 +27,6 @@ echo "📥 Pulling latest changes..."
 git pull
 
 echo "🛠️  Building $SCHEME ..."
-echo "Using destination: $YOUR_KEYCHAIN_PASSWORD"
-security unlock-keychain -p YOUR_KEYCHAIN_PASSWORD ~/Library/Keychains/login.keychain-db
 xcodebuild -scheme "$SCHEME" -destination "$DESTINATION" clean build | tee "$LOGFILE"
 
 echo "✅ Done. Log saved to $LOGFILE"
