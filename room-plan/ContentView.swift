@@ -263,14 +263,19 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
         for anchor in anchors {
             if let meshAnchor = anchor as? ARMeshAnchor {
                 meshAnchors.append(meshAnchor)
-                print("📦 Mesh anchor added: \(meshAnchor.geometry.vertices.count) vertices")
+                print("🆕 Mesh anchor added: \(meshAnchor.geometry.vertices.count) vertices")
+                
+                // Create a test mesh to verify rendering is working
+                if meshAnchors.count == 1 {
+                    createTestMesh()
+                }
                 
                 // Analyze mesh for furniture
                 analyzeMeshForFurniture(meshAnchor)
                 
                 DispatchQueue.main.async {
                     self.viewModel.updateMeshCount(self.meshAnchors.count)
-                    self.viewModel.setDebugInfo("Mesh detected: \(meshAnchor.geometry.vertices.count) vertices")
+                    self.viewModel.setDebugInfo("Mesh added: \(meshAnchor.geometry.vertices.count) vertices")
                 }
             }
         }
@@ -337,7 +342,12 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
     }
     
     private func createColoredMesh(for furniture: FurnitureItem, meshAnchor: ARMeshAnchor) {
-        guard let arView = getARView() else { return }
+        guard let arView = getARView() else { 
+            print("❌ ARView is nil, cannot create colored mesh")
+            return 
+        }
+        
+        print("🎨 Attempting to create colored mesh for \(furniture.type)")
         
         // Get color for furniture type
         let color = furnitureColors[furniture.type] ?? .systemGray
@@ -382,7 +392,10 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
         // Track the entity
         coloredMeshEntities[furniture.id] = entity
         
-        print("🎨 Created colored mesh for \(furniture.type) at \(furniture.position)")
+        print("✅ Successfully created colored mesh for \(furniture.type) at \(furniture.position)")
+        print("   - Dimensions: \(furniture.dimensions)")
+        print("   - Color: \(furniture.type)")
+        print("   - Total entities in scene: \(arView.scene.anchors.count)")
     }
     
     private func clearColoredMeshes() {
@@ -417,6 +430,32 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
         DispatchQueue.main.async {
             self.viewModel.setDebugInfo("AR Session resumed")
         }
+    }
+    
+    private func createTestMesh() {
+        guard let arView = getARView() else { 
+            print("❌ ARView is nil, cannot create test mesh")
+            return 
+        }
+        
+        print("🧪 Creating test mesh...")
+        
+        // Create a simple red cube at the origin
+        let testMesh = MeshResource.generateBox(size: SIMD3<Float>(0.5, 0.5, 0.5))
+        var testMaterial = SimpleMaterial()
+        testMaterial.baseColor = MaterialColorParameter.color(.systemRed)
+        testMaterial.metallic = MaterialScalarParameter(0.0)
+        testMaterial.roughness = MaterialScalarParameter(0.5)
+        
+        let testEntity = ModelEntity(mesh: testMesh, materials: [testMaterial])
+        testEntity.position = SIMD3<Float>(0, 0, -1) // 1 meter in front of camera
+        
+        let testAnchor = AnchorEntity()
+        testAnchor.addChild(testEntity)
+        arView.scene.addAnchor(testAnchor)
+        
+        print("✅ Test mesh created at (0, 0, -1)")
+        print("   - Total anchors in scene: \(arView.scene.anchors.count)")
     }
 }
 
