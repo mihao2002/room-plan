@@ -69,8 +69,8 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            // Simple camera view for testing
-            CameraTestView(viewModel: vm)
+            // Camera view with AVFoundation
+            CameraView(viewModel: vm)
                 .ignoresSafeArea()
 
             // Debug overlay
@@ -150,47 +150,103 @@ struct ContentView: View {
     }
 }
 
-// Simple camera test view
-struct CameraTestView: UIViewRepresentable {
+// Camera view using AVFoundation
+struct CameraView: UIViewRepresentable {
     @ObservedObject var viewModel: ViewModel
 
-    func makeCoordinator() -> CameraTestCoordinator {
-        CameraTestCoordinator(viewModel: viewModel)
+    func makeCoordinator() -> CameraCoordinator {
+        CameraCoordinator(viewModel: viewModel)
     }
 
     func makeUIView(context: Context) -> UIView {
         let view = UIView(frame: UIScreen.main.bounds)
-        view.backgroundColor = .systemGreen // Test color to see if view is visible
+        view.backgroundColor = .black
         
-        // Add a simple label to confirm the view is working
-        let label = UILabel()
-        label.text = "Camera Test View"
-        label.textColor = .white
-        label.textAlignment = .center
-        label.frame = CGRect(x: 0, y: 100, width: view.frame.width, height: 50)
-        view.addSubview(label)
+        // Set up camera preview layer
+        let previewLayer = AVCaptureVideoPreviewLayer()
+        previewLayer.frame = view.bounds
+        previewLayer.videoGravity = .resizeAspectFill
+        view.layer.addSublayer(previewLayer)
         
-        print("🟢 CameraTestView created with frame: \(view.frame)")
+        // Store reference to preview layer in coordinator
+        context.coordinator.previewLayer = previewLayer
+        
+        // Start camera session
+        context.coordinator.startCameraSession()
+        
+        print("🟢 CameraView created with frame: \(view.frame)")
         return view
     }
 
     func updateUIView(_ uiView: UIView, context: Context) {
-        print("🔄 CameraTestView updated with frame: \(uiView.frame)")
+        // Update preview layer frame if needed
+        context.coordinator.previewLayer?.frame = uiView.bounds
+        print("🔄 CameraView updated with frame: \(uiView.frame)")
     }
 }
 
-class CameraTestCoordinator: NSObject {
+class CameraCoordinator: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     let viewModel: ViewModel
+    var previewLayer: AVCaptureVideoPreviewLayer?
+    private var captureSession: AVCaptureSession?
     private var roomCaptureView: RoomCaptureView?
     
     init(viewModel: ViewModel) {
         self.viewModel = viewModel
         super.init()
-        print("🟢 CameraTestCoordinator initialized")
+        print("🟢 CameraCoordinator initialized")
+    }
+    
+    func startCameraSession() {
+        let session = AVCaptureSession()
+        session.sessionPreset = .high
         
-        // Start RoomPlan scanning immediately
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            self.startRoomPlanScanning()
+        guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+            viewModel.setError("Camera not available")
+            return
+        }
+        
+        do {
+            let input = try AVCaptureDeviceInput(device: camera)
+            if session.canAddInput(input) {
+                session.addInput(input)
+            }
+            
+            // Add video output for processing
+            let videoOutput = AVCaptureVideoDataOutput()
+            videoOutput.setSampleBufferDelegate(self, queue: DispatchQueue.global(qos: .userInteractive))
+            
+            if session.canAddOutput(videoOutput) {
+                session.addOutput(videoOutput)
+            }
+            
+            // Set preview layer session
+            previewLayer?.session = session
+            
+            // Start session on background queue
+            DispatchQueue.global(qos: .userInteractive).async {
+                session.startRunning()
+                self.captureSession = session
+                
+                DispatchQueue.main.async {
+                    self.viewModel.setDebugInfo("Camera session started")
+                }
+                
+                // Start RoomPlan scanning after camera is ready
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    self.startRoomPlanScanning()
+                }
+            }
+            
+        } catch {
+            viewModel.setError("Failed to setup camera: \(error.localizedDescription)")
+        }
+    }
+    
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        // Camera is working - update debug info occasionally
+        DispatchQueue.main.async {
+            self.viewModel.setDebugInfo("Camera feed active")
         }
     }
     
