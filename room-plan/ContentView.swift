@@ -115,7 +115,7 @@ struct ContentView: View {
                         .background(Color.black.opacity(0.7))
                         .cornerRadius(8)
                     
-                    Text("Furnitures: \(vm.detectedFurniture.count)")
+                    Text("Furniture: \(vm.detectedFurniture.count)")
                         .foregroundColor(.white)
                         .padding()
                         .background(Color.black.opacity(0.7))
