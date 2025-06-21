@@ -30,7 +30,11 @@ echo "🛠️  Building $SCHEME ..."
 # Run xcodebuild and capture full output
 BUILD_OUTPUT=$(mktemp)
 
-xcodebuild -scheme "$SCHEME" -destination "id=$DEVICE_ID" clean build 2>&1 | tee "$BUILD_OUTPUT"
+#xcodebuild -scheme "$SCHEME" -destination "id=$DEVICE_ID" clean build 2>&1 | tee "$BUILD_OUTPUT"
+xcodebuild \
+  -scheme "room-plan" \
+  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  clean build
 
 # Extract only errors to build.log
 grep -i "error" "$BUILD_OUTPUT" > "$LOGFILE"
