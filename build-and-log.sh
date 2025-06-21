@@ -27,6 +27,7 @@ echo "📥 Pulling latest changes..."
 git pull
 
 echo "🛠️  Building $SCHEME ..."
-xcodebuild -scheme "$SCHEME" -destination "$DESTINATION" clean build | tee "$LOGFILE"
+xcodebuild -scheme "$SCHEME" -destination "id=$DEVICE_ID" clean build 2>&1 | grep -i "error" > build.log
+
 
 echo "✅ Done. Log saved to $LOGFILE"

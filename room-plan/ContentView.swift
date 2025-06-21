@@ -304,12 +304,6 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
         boxMaterial.roughness = .float(0.5)
         let boxEntity = ModelEntity(mesh: boxMesh, materials: [boxMaterial])
 
-        // Create a wireframe for the outline
-        var wireframeMaterial = SimpleMaterial()
-        wireframeMaterial.fillMode = .lines
-        wireframeMaterial.baseColor = .color(color)
-        let wireframeEntity = ModelEntity(mesh: boxMesh, materials: [wireframeMaterial])
-
         // Create a text label
         let textMesh = MeshResource.generateText(
             furniture.type, extrusionDepth: 0.01, font: .systemFont(ofSize: 0.1)
@@ -324,7 +318,6 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
         
         let anchorEntity = AnchorEntity(world: furniture.position)
         anchorEntity.addChild(boxEntity)
-        anchorEntity.addChild(wireframeEntity)
         anchorEntity.addChild(textEntity)
         
         arView.scene.addAnchor(anchorEntity)
