@@ -1,8 +1,5 @@
 import SwiftUI
 import RoomPlan
-import RealityKit
-import ARKit
-import AVFoundation
 
 class ViewModel: ObservableObject {
     @Published var detectedObjects: [CapturedRoom.Object] = []
@@ -13,14 +10,14 @@ class ViewModel: ObservableObject {
     func start() {
         isScanning = true
         errorMessage = nil
-        debugInfo = "Starting camera session..."
-        print("🟢 Starting camera session...")
+        debugInfo = "Starting RoomPlan scan..."
+        print("🟢 Starting RoomPlan scan...")
     }
 
     func stop() {
         isScanning = false
         debugInfo = "Stopped"
-        print("🔴 Stopping camera session...")
+        print("🔴 Stopping RoomPlan scan...")
     }
 
     func updateDetectedObjects(_ objects: [CapturedRoom.Object]) {
@@ -69,14 +66,14 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            // Camera view with AVFoundation
-            CameraView(viewModel: vm)
+            // Simple RoomCaptureView - this should show camera feed and detect furniture
+            RoomScanView(viewModel: vm)
                 .ignoresSafeArea()
 
             // Debug overlay
             VStack {
                 HStack {
-                    Text("RoomPlan Scanner")
+                    Text("Simple RoomPlan Test")
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
@@ -150,133 +147,23 @@ struct ContentView: View {
     }
 }
 
-// Camera view using AVFoundation
-struct CameraView: UIViewRepresentable {
+// Simple RoomPlan scanning view
+struct RoomScanView: UIViewRepresentable {
     @ObservedObject var viewModel: ViewModel
 
-    func makeCoordinator() -> CameraCoordinator {
-        CameraCoordinator(viewModel: viewModel)
+    func makeCoordinator() -> RoomScanCoordinator {
+        RoomScanCoordinator(viewModel: viewModel)
     }
 
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: UIScreen.main.bounds)
-        view.backgroundColor = .black
+    func makeUIView(context: Context) -> RoomCaptureView {
+        let view = RoomCaptureView()
+        view.delegate = context.coordinator
         
-        // Set up camera preview layer
-        let previewLayer = AVCaptureVideoPreviewLayer()
-        previewLayer.frame = view.bounds
-        previewLayer.videoGravity = .resizeAspectFill
-        view.layer.addSublayer(previewLayer)
-        
-        // Store reference to preview layer in coordinator
-        context.coordinator.previewLayer = previewLayer
-        
-        // Start camera session
-        context.coordinator.startCameraSession()
-        
-        print("🟢 CameraView created with frame: \(view.frame)")
+        print("🟢 RoomCaptureView created")
         return view
     }
 
-    func updateUIView(_ uiView: UIView, context: Context) {
-        // Update preview layer frame if needed
-        context.coordinator.previewLayer?.frame = uiView.bounds
-        print("🔄 CameraView updated with frame: \(uiView.frame)")
-    }
-}
-
-class CameraCoordinator: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
-    let viewModel: ViewModel
-    var previewLayer: AVCaptureVideoPreviewLayer?
-    private var captureSession: AVCaptureSession?
-    private var roomCaptureSession: RoomCaptureSession?
-    
-    init(viewModel: ViewModel) {
-        self.viewModel = viewModel
-        super.init()
-        print("🟢 CameraCoordinator initialized")
-    }
-    
-    func startCameraSession() {
-        let session = AVCaptureSession()
-        session.sessionPreset = .high
-        
-        guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
-            viewModel.setError("Camera not available")
-            return
-        }
-        
-        do {
-            let input = try AVCaptureDeviceInput(device: camera)
-            if session.canAddInput(input) {
-                session.addInput(input)
-            }
-            
-            // Add video output for processing
-            let videoOutput = AVCaptureVideoDataOutput()
-            videoOutput.setSampleBufferDelegate(self, queue: DispatchQueue.global(qos: .userInteractive))
-            
-            if session.canAddOutput(videoOutput) {
-                session.addOutput(videoOutput)
-            }
-            
-            // Set preview layer session
-            previewLayer?.session = session
-            
-            // Start session on background queue
-            DispatchQueue.global(qos: .userInteractive).async {
-                session.startRunning()
-                self.captureSession = session
-                
-                DispatchQueue.main.async {
-                    self.viewModel.setDebugInfo("Camera session started")
-                }
-                
-                // Start RoomPlan scanning after camera is ready
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    self.startRoomPlanScanning()
-                }
-            }
-            
-        } catch {
-            viewModel.setError("Failed to setup camera: \(error.localizedDescription)")
-        }
-    }
-    
-    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        // Camera is working - update debug info occasionally
-        DispatchQueue.main.async {
-            self.viewModel.setDebugInfo("Camera feed active")
-        }
-    }
-    
-    private func startRoomPlanScanning() {
-        guard roomCaptureSession == nil else { return }
-        
-        do {
-            roomCaptureSession = try RoomCaptureSession()
-            roomCaptureSession?.delegate = self
-            
-            DispatchQueue.main.async {
-                self.viewModel.setDebugInfo("RoomPlan scanning started")
-            }
-            
-            print("🎥 RoomPlan scanning started")
-        } catch {
-            DispatchQueue.main.async {
-                self.viewModel.setError("Failed to start RoomPlan: \(error.localizedDescription)")
-            }
-            print("❌ Failed to start RoomPlan: \(error)")
-        }
-    }
-}
-
-extension CameraCoordinator: RoomCaptureSessionDelegate {
-    func captureSession(_ session: RoomCaptureSession, didUpdate room: CapturedRoom) {
-        viewModel.updateDetectedObjects(room.objects)
-    }
-    
-    func captureSession(_ session: RoomCaptureSession, didFailWithError error: Error) {
-        viewModel.setError("RoomPlan failed: \(error.localizedDescription)")
+    func updateUIView(_ uiView: RoomCaptureView, context: Context) {
+        print("🔄 RoomCaptureView updated")
     }
 }
