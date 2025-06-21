@@ -76,6 +76,10 @@ struct FurnitureItem: Identifiable {
     let position: SIMD3<Float>
     let dimensions: SIMD3<Float>
     let confidence: Float
+    let meshId: UUID
+    let vertexCount: Int
+    let faceCount: Int
+    let estimatedDimension: Float
 }
 
 struct ContentView: View {
@@ -142,14 +146,24 @@ struct ContentView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack {
                                 ForEach(vm.detectedFurniture) { furniture in
-                                    VStack {
+                                    VStack(alignment: .leading, spacing: 4) {
                                         Text(furniture.type)
                                             .font(.caption)
+                                            .fontWeight(.bold)
                                         Text("Conf: \(Int(furniture.confidence * 100))%")
                                             .font(.caption2)
+                                        Text("Mesh: \(furniture.meshId.uuidString.prefix(8))")
+                                            .font(.caption2)
+                                            .foregroundColor(.yellow)
+                                        Text("V: \(furniture.vertexCount), F: \(furniture.faceCount)")
+                                            .font(.caption2)
+                                            .foregroundColor(.cyan)
+                                        Text("Size: \(String(format: "%.1f", furniture.estimatedDimension))m")
+                                            .font(.caption2)
+                                            .foregroundColor(.green)
                                     }
                                     .padding(8)
-                                    .background(Color.green.opacity(0.8))
+                                    .background(Color.black.opacity(0.8))
                                     .foregroundColor(.white)
                                     .cornerRadius(8)
                                 }
@@ -182,6 +196,9 @@ struct ARMeshView: UIViewRepresentable {
         let arView = ARView(frame: .zero)
         arView.session.delegate = context.coordinator
         
+        // Pass ARView reference to coordinator
+        context.coordinator.setARView(arView)
+        
         // Configure AR session for mesh generation
         let configuration = ARWorldTrackingConfiguration()
         configuration.planeDetection = [.horizontal, .vertical]
@@ -209,15 +226,30 @@ struct ARMeshView: UIViewRepresentable {
     }
 }
 
+// AR Coordinator with colored mesh visualization
 class ARMeshCoordinator: NSObject, ARSessionDelegate {
-    let viewModel: ViewModel
+    @ObservedObject var viewModel: ViewModel
     private var meshAnchors: [ARMeshAnchor] = []
     private let furnitureDetector = FurnitureDetector()
+    private var coloredMeshEntities: [UUID: ModelEntity] = [:] // Track colored meshes by furniture ID
+    private weak var arView: ARView? // Store ARView reference
     
+    // Color mapping for furniture types
+    private let furnitureColors: [String: UIColor] = [
+        "Table": .systemRed,
+        "Chair": .systemBlue,
+        "Bed": .systemGreen,
+        "Cabinet": .systemPurple,
+        "Furniture": .systemOrange
+    ]
+
     init(viewModel: ViewModel) {
         self.viewModel = viewModel
         super.init()
-        print("🟢 ARMeshCoordinator initialized")
+    }
+    
+    func setARView(_ arView: ARView) {
+        self.arView = arView
     }
     
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
@@ -290,13 +322,61 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
                 // Limit total furniture count to prevent excessive detections
                 if viewModel.detectedFurniture.count < 10 {
                     viewModel.addDetectedFurniture(furniture)
+                    // Create colored mesh for this furniture
+                    createColoredMesh(for: furniture, meshAnchor: meshAnchor)
                 } else {
                     // Clear old detections if we have too many
                     viewModel.clearDetectedFurniture()
+                    clearColoredMeshes()
                     viewModel.addDetectedFurniture(furniture)
+                    // Create colored mesh for this furniture
+                    createColoredMesh(for: furniture, meshAnchor: meshAnchor)
                 }
             }
         }
+    }
+    
+    private func createColoredMesh(for furniture: FurnitureItem, meshAnchor: ARMeshAnchor) {
+        guard let arView = getARView() else { return }
+        
+        // Get color for furniture type
+        let color = furnitureColors[furniture.type] ?? .systemGray
+        
+        // Create a simple colored cube at the furniture position
+        let mesh = MeshResource.generateBox(size: furniture.dimensions)
+        var material = SimpleMaterial()
+        material.baseColor = MaterialColorParameter.color(color)
+        material.metallic = MaterialScalarParameter(0.0)
+        material.roughness = MaterialScalarParameter(0.5)
+        
+        let entity = ModelEntity(mesh: mesh, materials: [material])
+        entity.position = furniture.position
+        
+        // Add to scene
+        let anchorEntity = AnchorEntity()
+        anchorEntity.addChild(entity)
+        arView.scene.addAnchor(anchorEntity)
+        
+        // Track the entity
+        coloredMeshEntities[furniture.id] = entity
+        
+        print("🎨 Created colored mesh for \(furniture.type) at \(furniture.position)")
+    }
+    
+    private func clearColoredMeshes() {
+        guard let arView = getARView() else { return }
+        
+        // Remove all colored mesh entities from scene
+        for entity in coloredMeshEntities.values {
+            entity.parent?.removeChild(entity)
+        }
+        coloredMeshEntities.removeAll()
+        
+        print("🗑️ Cleared all colored meshes")
+    }
+    
+    private func getARView() -> ARView? {
+        return arView
     }
     
     func session(_ session: ARSession, didFailWithError error: Error) {
@@ -397,7 +477,11 @@ class FurnitureDetector {
                 type: type,
                 position: center,
                 dimensions: dimensions,
-                confidence: confidence
+                confidence: confidence,
+                meshId: meshAnchor.identifier,
+                vertexCount: vertexCount,
+                faceCount: faceCount,
+                estimatedDimension: estimatedDimension
             )
         }
         
