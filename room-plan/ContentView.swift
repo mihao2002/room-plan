@@ -286,8 +286,8 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
 class FurnitureDetector {
     
     func detectFurniture(from meshAnchor: ARMeshAnchor) -> FurnitureItem? {
-        let vertices = meshAnchor.geometry.vertices
-        let faces = meshAnchor.geometry.faces
+        let vertices = Array(meshAnchor.geometry.vertices)
+        let faces = Array(meshAnchor.geometry.faces)
         
         guard vertices.count > 10 else { return nil } // Too small to be furniture
         
@@ -307,7 +307,7 @@ class FurnitureDetector {
         let dimensions = SIMD3<Float>(width, height, depth)
         
         // Analyze surface normals for horizontal vs vertical surfaces
-        let normals = meshAnchor.geometry.normals
+        let normals = Array(meshAnchor.geometry.normals)
         var horizontalSurfaces = 0
         var verticalSurfaces = 0
         
