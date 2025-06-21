@@ -291,9 +291,10 @@ class FurnitureDetector {
         
         guard vertices.count > 10 else { return nil } // Too small to be furniture
         
-        // Convert vertices to array using stride
+        // Safely convert vertices to array
+        guard let vertexBuffer = vertices.buffer else { return nil }
         let vertexArray = Array(UnsafeBufferPointer(
-            start: vertices.buffer.contents().assumingMemoryBound(to: SIMD3<Float>.self),
+            start: vertexBuffer.contents().assumingMemoryBound(to: SIMD3<Float>.self),
             count: vertices.count
         ))
         
@@ -314,19 +315,22 @@ class FurnitureDetector {
         
         // Analyze surface normals for horizontal vs vertical surfaces
         let normals = meshAnchor.geometry.normals
-        let normalArray = Array(UnsafeBufferPointer(
-            start: normals.buffer.contents().assumingMemoryBound(to: SIMD3<Float>.self),
-            count: normals.count
-        ))
-        
         var horizontalSurfaces = 0
         var verticalSurfaces = 0
         
-        for normal in normalArray {
-            if abs(normal.y) > 0.8 { // Mostly vertical
-                verticalSurfaces += 1
-            } else if abs(normal.y) < 0.2 { // Mostly horizontal
-                horizontalSurfaces += 1
+        // Safely access normals if available
+        if let normalBuffer = normals.buffer, normals.count > 0 {
+            let normalArray = Array(UnsafeBufferPointer(
+                start: normalBuffer.contents().assumingMemoryBound(to: SIMD3<Float>.self),
+                count: normals.count
+            ))
+            
+            for normal in normalArray {
+                if abs(normal.y) > 0.8 { // Mostly vertical
+                    verticalSurfaces += 1
+                } else if abs(normal.y) < 0.2 { // Mostly horizontal
+                    horizontalSurfaces += 1
+                }
             }
         }
         
