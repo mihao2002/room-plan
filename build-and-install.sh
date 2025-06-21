@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Usage: ./build_and_log.sh [device_id]
+# Usage: ./build_and_install.sh [device_id]
 
 # Fail fast on any error
 set -e
@@ -27,6 +27,6 @@ echo "📥 Pulling latest changes..."
 git pull
 
 echo "🛠️  Building $SCHEME ..."
-xcodebuild -scheme "$SCHEME" -destination "$DESTINATION" clean build | tee "$LOGFILE"
+xcodebuild -scheme "$SCHEME" -destination "$DESTINATION" clean build install | tee "$LOGFILE"
 
 echo "✅ Done. Log saved to $LOGFILE"
