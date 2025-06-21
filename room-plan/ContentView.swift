@@ -289,32 +289,9 @@ class FurnitureDetector {
         let vertices = meshAnchor.geometry.vertices
         let faces = meshAnchor.geometry.faces
         
-        guard vertices.count > 10 else { return nil } // Too small to be furniture
-        
-        // Temporarily disable vertex analysis to avoid crashes
-        // TODO: Re-enable when buffer access issues are resolved
-        /*
-        // Safely convert vertices to array
-        let vertexArray = Array(UnsafeBufferPointer(
-            start: vertices.buffer.contents().assumingMemoryBound(to: SIMD3<Float>.self),
-            count: vertices.count
-        ))
-        
-        // Calculate bounding box
-        let minX = vertexArray.map { $0.x }.min() ?? 0
-        let maxX = vertexArray.map { $0.x }.max() ?? 0
-        let minY = vertexArray.map { $0.y }.min() ?? 0
-        let maxY = vertexArray.map { $0.y }.max() ?? 0
-        let minZ = vertexArray.map { $0.z }.min() ?? 0
-        let maxZ = vertexArray.map { $0.z }.max() ?? 0
-        
-        let width = maxX - minX
-        let height = maxY - minY
-        let depth = maxZ - minZ
-        
-        let center = SIMD3<Float>((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2)
-        let dimensions = SIMD3<Float>(width, height, depth)
-        */
+        // Much stricter minimum requirements
+        guard vertices.count > 100 else { return nil } // Increased from 10 to 100
+        guard faces.count > 50 else { return nil } // Added face count requirement
         
         // Use simplified detection based on vertex count and mesh anchor properties
         let vertexCount = vertices.count
@@ -323,6 +300,10 @@ class FurnitureDetector {
         // Estimate dimensions based on vertex count and face count
         let estimatedVolume = Float(vertexCount) * 0.001 // Rough estimation
         let estimatedDimension = pow(estimatedVolume, 1.0/3.0) // Cube root for rough size
+        
+        // Much stricter size requirements
+        guard estimatedDimension > 0.3 else { return nil } // Minimum 30cm
+        guard estimatedDimension < 3.0 else { return nil } // Maximum 3m
         
         let center = SIMD3<Float>(0, 0, 0) // Use origin as center
         let dimensions = SIMD3<Float>(estimatedDimension, estimatedDimension, estimatedDimension)
@@ -398,32 +379,34 @@ class FurnitureDetector {
         let height = dimensions.y
         let depth = dimensions.z
         
-        // Table detection
-        if height > 0.4 && height < 1.2 && width > 0.3 && depth > 0.3 {
+        // Much stricter requirements for furniture detection
+        
+        // Table detection - must be substantial size
+        if height > 0.6 && height < 1.2 && width > 0.8 && depth > 0.8 {
             if horizontalSurfaces > verticalSurfaces * 2 {
                 return "Table"
             }
         }
         
-        // Chair detection
-        if height > 0.4 && height < 1.0 && width > 0.2 && width < 0.6 && depth > 0.2 && depth < 0.6 {
+        // Chair detection - must be chair-sized
+        if height > 0.6 && height < 1.1 && width > 0.4 && width < 0.8 && depth > 0.4 && depth < 0.8 {
             if verticalSurfaces > horizontalSurfaces {
                 return "Chair"
             }
         }
         
-        // Bed detection
-        if height > 0.2 && height < 0.8 && width > 0.8 && depth > 1.5 {
+        // Bed detection - must be bed-sized
+        if height > 0.3 && height < 0.8 && width > 1.2 && depth > 1.8 {
             return "Bed"
         }
         
-        // Cabinet detection
-        if height > 0.5 && width > 0.3 && depth > 0.3 && verticalSurfaces > horizontalSurfaces * 2 {
+        // Cabinet detection - must be substantial
+        if height > 0.8 && width > 0.6 && depth > 0.4 && verticalSurfaces > horizontalSurfaces * 2 {
             return "Cabinet"
         }
         
-        // Generic furniture for anything that meets basic criteria
-        if height > 0.3 && width > 0.2 && depth > 0.2 && vertexCount > 20 {
+        // Generic furniture - much stricter criteria
+        if height > 0.5 && width > 0.5 && depth > 0.5 && vertexCount > 200 {
             return "Furniture"
         }
         
