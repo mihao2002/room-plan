@@ -28,6 +28,7 @@ echo "📥 Pulling latest changes..."
 git pull
 
 echo "🛠️  Building $SCHEME ..."
+echo "Using destination: $YOUR_KEYCHAIN_PASSWORD"
 security unlock-keychain -p YOUR_KEYCHAIN_PASSWORD ~/Library/Keychains/login.keychain-db
 xcodebuild -scheme "$SCHEME" -destination "$DESTINATION" clean build | tee "$LOGFILE"
 
