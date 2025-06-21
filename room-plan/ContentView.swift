@@ -125,7 +125,14 @@ struct ARMeshView: UIViewRepresentable {
         let configuration = ARWorldTrackingConfiguration()
         configuration.planeDetection = [.horizontal, .vertical]
         configuration.environmentTexturing = .automatic
-        configuration.frameSemantics = .sceneReconstruction
+        
+        // Enable mesh generation if available
+        if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
+            configuration.sceneReconstruction = .mesh
+            print("✅ Scene reconstruction with mesh enabled")
+        } else {
+            print("⚠️ Scene reconstruction with mesh not supported")
+        }
         
         arView.session.run(configuration)
         
