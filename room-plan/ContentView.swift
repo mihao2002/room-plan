@@ -12,14 +12,14 @@ class ViewModel: ObservableObject {
     func start() {
         isScanning = true
         errorMessage = nil
-        debugInfo = "Starting room scan..."
-        print("🟢 Starting room scan...")
+        debugInfo = "Starting AR session..."
+        print("🟢 Starting AR session...")
     }
 
     func stop() {
         isScanning = false
         debugInfo = "Stopped"
-        print("🔴 Stopping room scan...")
+        print("🔴 Stopping AR session...")
     }
 
     func updateDetectedObjects(_ objects: [CapturedRoom.Object]) {
@@ -68,8 +68,8 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            // Use RoomCaptureView with proper configuration
-            RoomScanView(viewModel: vm)
+            // ARView for camera feed (always visible)
+            ARCameraView(viewModel: vm)
                 .ignoresSafeArea()
 
             // Debug overlay
@@ -149,26 +149,88 @@ struct ContentView: View {
     }
 }
 
-struct RoomScanView: UIViewRepresentable {
+// ARView for camera feed
+struct ARCameraView: UIViewRepresentable {
     @ObservedObject var viewModel: ViewModel
 
-    func makeCoordinator() -> RoomScanCoordinator {
-        RoomScanCoordinator(viewModel: viewModel)
+    func makeCoordinator() -> ARCameraCoordinator {
+        ARCameraCoordinator(viewModel: viewModel)
     }
 
-    func makeUIView(context: Context) -> RoomCaptureView {
-        let view = RoomCaptureView()
-        view.delegate = context.coordinator
+    func makeUIView(context: Context) -> ARView {
+        let arView = ARView(frame: .zero)
+        arView.session.delegate = context.coordinator
         
-        // Configure RoomCaptureView for camera feed visibility
-        view.isOpaque = true
-        view.backgroundColor = .systemBlue // Temporary background to see if view is created
+        // Configure AR session for basic camera feed
+        let configuration = ARWorldTrackingConfiguration()
+        configuration.planeDetection = [.horizontal, .vertical]
+        configuration.environmentTexturing = .automatic
         
-        print("🟢 RoomCaptureView created with frame: \(view.frame)")
-        return view
+        arView.session.run(configuration)
+        
+        print("🟢 ARView created for camera feed")
+        return arView
     }
 
-    func updateUIView(_ uiView: RoomCaptureView, context: Context) {
-        print("🔄 RoomCaptureView updated with frame: \(uiView.frame)")
+    func updateUIView(_ uiView: ARView, context: Context) {
+        print("🔄 ARView updated")
+    }
+}
+
+class ARCameraCoordinator: NSObject, ARSessionDelegate {
+    let viewModel: ViewModel
+    private var roomCaptureView: RoomCaptureView?
+    
+    init(viewModel: ViewModel) {
+        self.viewModel = viewModel
+        super.init()
+        print("🟢 ARCameraCoordinator initialized")
+    }
+    
+    func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        // This confirms the camera is working
+        DispatchQueue.main.async {
+            self.viewModel.setDebugInfo("Camera frame updated")
+        }
+        
+        // Start RoomPlan scanning if not already started
+        if roomCaptureView == nil {
+            startRoomPlanScanning()
+        }
+    }
+    
+    func session(_ session: ARSession, didFailWithError error: Error) {
+        DispatchQueue.main.async {
+            self.viewModel.setError(error.localizedDescription)
+        }
+    }
+    
+    func sessionWasInterrupted(_ session: ARSession) {
+        DispatchQueue.main.async {
+            self.viewModel.setDebugInfo("AR Session interrupted")
+        }
+    }
+    
+    func sessionInterruptionEnded(_ session: ARSession) {
+        DispatchQueue.main.async {
+            self.viewModel.setDebugInfo("AR Session resumed")
+        }
+    }
+    
+    private func startRoomPlanScanning() {
+        guard roomCaptureView == nil else { return }
+        
+        DispatchQueue.main.async {
+            // Create RoomCaptureView in background for scanning
+            let roomView = RoomCaptureView()
+            let coordinator = RoomScanCoordinator(viewModel: self.viewModel)
+            roomView.delegate = coordinator
+            
+            // Keep a reference to prevent deallocation
+            self.roomCaptureView = roomView
+            
+            self.viewModel.setDebugInfo("RoomPlan scanning started")
+            print("🎥 RoomPlan scanning started")
+        }
     }
 }
