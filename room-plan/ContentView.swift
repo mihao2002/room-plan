@@ -206,9 +206,10 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
             // 2. Create a MeshResource from the descriptor
             let meshResource = try MeshResource.generate(from: [descriptor])
 
-            // 3. Create a semi-transparent material
-            var material = SimpleMaterial()
-            material.baseColor = .color(UIColor.systemBlue.withAlphaComponent(0.6))
+            // 3. Create a wireframe material to see the triangle structure
+            var material = UnlitMaterial()
+            material.baseColor = .color(.cyan)
+            material.fillMode = .lines
             
             // 4. Create a ModelEntity and place it in the scene
             let modelEntity = ModelEntity(mesh: meshResource, materials: [material])
