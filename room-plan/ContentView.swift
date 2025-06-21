@@ -293,7 +293,7 @@ class FurnitureDetector {
         
         // Convert vertices to array using stride
         let vertexArray = Array(UnsafeBufferPointer(
-            start: vertices.pointer.assumingMemoryBound(to: SIMD3<Float>.self),
+            start: vertices.buffer.contents().assumingMemoryBound(to: SIMD3<Float>.self),
             count: vertices.count
         ))
         
@@ -315,7 +315,7 @@ class FurnitureDetector {
         // Analyze surface normals for horizontal vs vertical surfaces
         let normals = meshAnchor.geometry.normals
         let normalArray = Array(UnsafeBufferPointer(
-            start: normals.pointer.assumingMemoryBound(to: SIMD3<Float>.self),
+            start: normals.buffer.contents().assumingMemoryBound(to: SIMD3<Float>.self),
             count: normals.count
         ))
         
@@ -409,12 +409,12 @@ class FurnitureDetector {
         var confidence: Float = 0.0
         
         // More vertices = higher confidence
-        confidence += min(Float(vertexCount) / 100.0, 0.3)
+        confidence += Swift.min(Float(vertexCount) / 100.0, 0.3)
         
         // Good surface ratio = higher confidence
         let totalSurfaces = horizontalSurfaces + verticalSurfaces
         if totalSurfaces > 0 {
-            let surfaceRatio = Float(max(horizontalSurfaces, verticalSurfaces)) / Float(totalSurfaces)
+            let surfaceRatio = Float(Swift.max(horizontalSurfaces, verticalSurfaces)) / Float(totalSurfaces)
             confidence += surfaceRatio * 0.4
         }
         
