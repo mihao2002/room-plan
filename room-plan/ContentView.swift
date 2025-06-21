@@ -293,51 +293,53 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
     
     private func createColoredMesh(for furniture: FurnitureItem) {
         guard let arView = arView else { return }
-        
-        // Safety check to ensure dimensions are valid numbers
-        guard furniture.dimensions.x.isFinite && furniture.dimensions.y.isFinite && furniture.dimensions.z.isFinite else {
-            print("❌ Invalid dimensions for furniture, cannot create mesh: \(furniture.dimensions)")
+
+        // Comprehensive safety check for all floating-point values
+        guard furniture.position.x.isFinite && furniture.position.y.isFinite && furniture.position.z.isFinite &&
+              furniture.dimensions.x.isFinite && furniture.dimensions.y.isFinite && furniture.dimensions.z.isFinite else {
+            print("❌ Invalid float value in furniture data. Pos: \(furniture.position), Dim: \(furniture.dimensions)")
             return
         }
 
-        let color = furnitureColors[furniture.type] ?? .systemGray
-        
-        // As a diagnostic step, generate a sphere instead of a box.
-        // This helps isolate if the crash is specific to generateBox().
         let avgDimension = (furniture.dimensions.x + furniture.dimensions.y + furniture.dimensions.z) / 3.0
         let radius = avgDimension / 2.0
-        
-        guard radius > 0.05 else { // Minimum radius of 5cm
-            print("❌ Calculated radius is too small, skipping sphere generation: \(radius)")
+
+        guard radius > 0.05 && radius.isFinite else {
+            print("❌ Invalid radius: \(radius)")
             return
         }
-
-        // Create a semi-transparent sphere for the furniture volume
-        let sphereMesh = MeshResource.generateSphere(radius: radius)
-        var sphereMaterial = SimpleMaterial()
-        sphereMaterial.baseColor = .color(color.withAlphaComponent(0.4))
-        sphereMaterial.metallic = .float(0.5)
-        sphereMaterial.roughness = .float(0.5)
-        let sphereEntity = ModelEntity(mesh: sphereMesh, materials: [sphereMaterial])
-
-        // Create a text label
-        let textMesh = MeshResource.generateText(
-            furniture.type, extrusionDepth: 0.01, font: .systemFont(ofSize: 0.1)
-        )
-        var textMaterial = SimpleMaterial()
-        textMaterial.baseColor = .color(.white)
-        let textEntity = ModelEntity(mesh: textMesh, materials: [textMaterial])
-        // Center the text and position it above the sphere
-        let textSize = textEntity.visualBounds(relativeTo: nil).extents
-        textEntity.position.x = -textSize.x / 2
-        textEntity.position.y = radius + 0.1
         
-        let anchorEntity = AnchorEntity(world: furniture.position)
-        anchorEntity.addChild(sphereEntity)
-        anchorEntity.addChild(textEntity)
-        
-        arView.scene.addAnchor(anchorEntity)
-        coloredMeshEntities[furniture.id] = anchorEntity
+        do {
+            let color = furnitureColors[furniture.type] ?? .systemGray
+
+            // Create sphere
+            let sphereMesh = try MeshResource.generateSphere(radius: radius)
+            var sphereMaterial = SimpleMaterial()
+            sphereMaterial.baseColor = .color(color.withAlphaComponent(0.4))
+            sphereMaterial.metallic = .float(0.5)
+            sphereMaterial.roughness = .float(0.5)
+            let sphereEntity = ModelEntity(mesh: sphereMesh, materials: [sphereMaterial])
+
+            // Create text
+            let textMesh = try MeshResource.generateText(furniture.type, extrusionDepth: 0.01, font: .systemFont(ofSize: 0.1))
+            var textMaterial = SimpleMaterial()
+            textMaterial.baseColor = .color(.white)
+            let textEntity = ModelEntity(mesh: textMesh, materials: [textMaterial])
+            let textSize = textEntity.visualBounds(relativeTo: nil).extents
+            textEntity.position.x = -textSize.x / 2
+            textEntity.position.y = radius + 0.1
+
+            // Create anchor and add entities
+            let anchorEntity = AnchorEntity(world: furniture.position)
+            anchorEntity.addChild(sphereEntity)
+            anchorEntity.addChild(textEntity)
+            
+            arView.scene.addAnchor(anchorEntity)
+            coloredMeshEntities[furniture.id] = anchorEntity
+
+        } catch {
+            print("❌ Error creating mesh for furniture: \(error)")
+        }
     }
     
     private func clearAllFurniture() {
