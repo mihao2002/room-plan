@@ -24,7 +24,7 @@ class RoomScanCoordinator: NSObject, RoomCaptureViewDelegate, NSSecureCoding {
 
     func captureView(_ captureView: RoomCaptureView, didUpdate room: CapturedRoom) {
          print("✅ Room updated - detected objects count: \(room.objects.count)")
-         print("📊 Room details: surfaces=\(room.surfaces.count), openings=\(room.openings.count)")
+         print("📊 Room details: openings=\(room.openings.count)")
          viewModel.roomCaptureView(captureView, didUpdate: room)
      }
 

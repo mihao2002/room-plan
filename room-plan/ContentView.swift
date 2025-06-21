@@ -165,10 +165,7 @@ struct RoomScanView: UIViewRepresentable {
         view.isOpaque = false
         view.backgroundColor = .clear
         
-        // Enable scanning features
-        view.scanningMode = .room
-        
-        print("🟢 RoomCaptureView created with scanning mode: \(view.scanningMode)")
+        print("🟢 RoomCaptureView created")
         return view
     }
 
