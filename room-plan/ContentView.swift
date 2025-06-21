@@ -183,42 +183,45 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
     }
 
     private func updateMesh(anchor: ARMeshAnchor) {
-        guard let arView = arView else { return }
+        // All scene updates must be performed on the main thread.
+        DispatchQueue.main.async {
+            guard let arView = self.arView else { return }
 
-        // Remove old anchor entity if it exists
-        if let existingAnchor = meshEntities[anchor.identifier] {
-            arView.scene.removeAnchor(existingAnchor)
-        }
+            // Remove old anchor entity if it exists
+            if let existingAnchor = self.meshEntities[anchor.identifier] {
+                arView.scene.removeAnchor(existingAnchor)
+            }
 
-        do {
-            // 1. Create a MeshDescriptor from the ARMeshGeometry
-            var descriptor = MeshDescriptor(name: "custom")
-            let positions = anchor.geometry.vertices.asSIMD3(ofType: SIMD3<Float>.self)
-            descriptor.positions = MeshBuffers.Positions(positions)
-            let indices = anchor.geometry.faces.asUInt32()
-            descriptor.primitives = .triangles(indices)
+            do {
+                // 1. Create a MeshDescriptor from the ARMeshGeometry
+                var descriptor = MeshDescriptor(name: "custom")
+                let positions = anchor.geometry.vertices.asSIMD3(ofType: SIMD3<Float>.self)
+                descriptor.positions = MeshBuffers.Positions(positions)
+                let indices = anchor.geometry.faces.asUInt32()
+                descriptor.primitives = .triangles(indices)
 
-            // 2. Create a MeshResource from the descriptor
-            let meshResource = try MeshResource.generate(from: [descriptor])
+                // 2. Create a MeshResource from the descriptor
+                let meshResource = try MeshResource.generate(from: [descriptor])
 
-            // 3. Create a solid red material to compare with the default mesh
-            var material = SimpleMaterial()
-            material.baseColor = .color(.red)
-            
-            // 4. Create a ModelEntity and scale it down slightly
-            let modelEntity = ModelEntity(mesh: meshResource, materials: [material])
-            modelEntity.scale *= 0.99 // Make it slightly smaller to see inside default mesh
-            
-            // 5. Create a new AnchorEntity to hold the model
-            let anchorEntity = AnchorEntity(world: anchor.transform)
-            anchorEntity.addChild(modelEntity)
-            arView.scene.addAnchor(anchorEntity)
+                // 3. Create a solid red material to compare with the default mesh
+                var material = SimpleMaterial()
+                material.baseColor = .color(.red)
+                
+                // 4. Create a ModelEntity and scale it down slightly
+                let modelEntity = ModelEntity(mesh: meshResource, materials: [material])
+                modelEntity.scale *= 0.99 // Make it slightly smaller to see inside default mesh
+                
+                // 5. Create a new AnchorEntity to hold the model
+                let anchorEntity = AnchorEntity(world: anchor.transform)
+                anchorEntity.addChild(modelEntity)
+                arView.scene.addAnchor(anchorEntity)
 
-            // 6. Store the new anchor entity
-            meshEntities[anchor.identifier] = anchorEntity
-            
-        } catch {
-            print("❌ Error creating mesh for anchor \(anchor.identifier): \(error)")
+                // 6. Store the new anchor entity
+                self.meshEntities[anchor.identifier] = anchorEntity
+                
+            } catch {
+                print("❌ Error creating mesh for anchor \(anchor.identifier): \(error)")
+            }
         }
     }
 }
