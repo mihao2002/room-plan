@@ -294,6 +294,12 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
     private func createColoredMesh(for furniture: FurnitureItem) {
         guard let arView = arView else { return }
         
+        // Safety check to ensure dimensions are valid numbers
+        guard furniture.dimensions.x.isFinite && furniture.dimensions.y.isFinite && furniture.dimensions.z.isFinite else {
+            print("❌ Invalid dimensions for furniture, cannot create mesh: \(furniture.dimensions)")
+            return
+        }
+
         let color = furnitureColors[furniture.type] ?? .systemGray
         
         // Create a semi-transparent box for the furniture volume
