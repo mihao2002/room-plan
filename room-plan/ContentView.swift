@@ -292,9 +292,8 @@ class FurnitureDetector {
         guard vertices.count > 10 else { return nil } // Too small to be furniture
         
         // Safely convert vertices to array
-        guard let vertexBuffer = vertices.buffer else { return nil }
         let vertexArray = Array(UnsafeBufferPointer(
-            start: vertexBuffer.contents().assumingMemoryBound(to: SIMD3<Float>.self),
+            start: vertices.buffer.contents().assumingMemoryBound(to: SIMD3<Float>.self),
             count: vertices.count
         ))
         
@@ -319,9 +318,9 @@ class FurnitureDetector {
         var verticalSurfaces = 0
         
         // Safely access normals if available
-        if let normalBuffer = normals.buffer, normals.count > 0 {
+        if normals.count > 0 {
             let normalArray = Array(UnsafeBufferPointer(
-                start: normalBuffer.contents().assumingMemoryBound(to: SIMD3<Float>.self),
+                start: normals.buffer.contents().assumingMemoryBound(to: SIMD3<Float>.self),
                 count: normals.count
             ))
             
