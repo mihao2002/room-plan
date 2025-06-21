@@ -5,49 +5,32 @@ import RealityKit
 class ViewModel: ObservableObject {
     @Published var detectedObjects: [CapturedRoom.Object] = []
     @Published var projectedPoints: [CapturedRoom.Object: CGPoint] = [:]
-
-    // Hidden ARView instance used only for projecting 3D points to 2D
-    private let arView = ARView(frame: .zero)
+    @Published var isScanning = false
+    @Published var errorMessage: String?
 
     func start() {
-        // Nothing special here; RoomCaptureView manages scanning internally
+        isScanning = true
+        errorMessage = nil
+        print("🟢 Starting room scan...")
     }
 
-    func updateProjectedPoints() {
-        var newPoints: [CapturedRoom.Object: CGPoint] = [:]
-        
-        guard let frame = arView.session.currentFrame else {
-            print("❌ ARView has no current ARFrame – projection will not run")
-            return
-        }
-
-        print("✅ ARFrame available: camera transform = \(frame.camera.transform)")
-
-        for obj in detectedObjects {
-            let pos = SIMD3<Float>(
-                obj.transform.columns.3.x,
-                obj.transform.columns.3.y,
-                obj.transform.columns.3.z
-            )
-
-            if let projected = arView.project(pos) {
-                newPoints[obj] = CGPoint(x: CGFloat(projected.x), y: CGFloat(projected.y))
-            } else {
-                print("⚠️ Could not project object at position \(pos)")
-            }
-        }
-
-        DispatchQueue.main.async {
-            self.projectedPoints = newPoints
-        }
+    func stop() {
+        isScanning = false
+        print("🔴 Stopping room scan...")
     }
-
 
     // This method is called by Coordinator to update detected objects
     func roomCaptureView(_ roomCaptureView: RoomCaptureView, didUpdate room: CapturedRoom) {
         DispatchQueue.main.async {
             self.detectedObjects = room.objects
-            self.updateProjectedPoints()
+            print("✅ Detected \(room.objects.count) objects")
+        }
+    }
+    
+    func roomCaptureView(_ captureView: RoomCaptureView, didFail error: Error) {
+        DispatchQueue.main.async {
+            self.errorMessage = error.localizedDescription
+            print("❌ Room capture failed: \(error.localizedDescription)")
         }
     }
 }
@@ -69,32 +52,79 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-
-            Color.green.opacity(0.2) // Add this for debug
-
+            // Debug background to ensure view is visible
+            Color.black
+                .ignoresSafeArea()
+            
+            // RoomCaptureView will show the camera feed
             RoomScanView(viewModel: vm)
                 .ignoresSafeArea()
 
-            GeometryReader { geo in
-                ForEach(Array(vm.detectedObjects.enumerated()), id: \.element) { index, obj in
-                    if let pos = vm.projectedPoints[obj] {
-                        Text(String(describing: obj.category).capitalized)
-                            .padding(6)
+            // Debug overlay
+            VStack {
+                HStack {
+                    Text("RoomPlan Scanner")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(Color.black.opacity(0.7))
+                        .cornerRadius(8)
+                    
+                    Spacer()
+                }
+                .padding(.top, 50)
+                
+                Spacer()
+                
+                // Status and detected objects
+                VStack(spacing: 10) {
+                    if let error = vm.errorMessage {
+                        Text("Error: \(error)")
+                            .foregroundColor(.red)
+                            .padding()
                             .background(Color.black.opacity(0.7))
-                            .foregroundColor(.white)
-                            .cornerRadius(6)
-                            .position(x: pos.x, y: pos.y)
-
+                            .cornerRadius(8)
+                    }
+                    
+                    Text("Status: \(vm.isScanning ? "Scanning" : "Stopped")")
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(Color.black.opacity(0.7))
+                        .cornerRadius(8)
+                    
+                    Text("Detected Objects: \(vm.detectedObjects.count)")
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(Color.black.opacity(0.7))
+                        .cornerRadius(8)
+                    
+                    if !vm.detectedObjects.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack {
+                                ForEach(Array(vm.detectedObjects.enumerated()), id: \.element) { index, obj in
+                                    Text(String(describing: obj.category).capitalized)
+                                        .padding(8)
+                                        .background(Color.blue.opacity(0.8))
+                                        .foregroundColor(.white)
+                                        .cornerRadius(8)
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
                     }
                 }
+                .padding(.bottom, 50)
             }
         }
         .onAppear {
             vm.start()
         }
+        .onDisappear {
+            vm.stop()
+        }
     }
 }
-
 
 struct RoomScanView: UIViewRepresentable {
     @ObservedObject var viewModel: ViewModel
@@ -106,8 +136,11 @@ struct RoomScanView: UIViewRepresentable {
     func makeUIView(context: Context) -> RoomCaptureView {
         let view = RoomCaptureView()
         view.delegate = context.coordinator
+        print("🟢 RoomCaptureView created")
         return view
     }
 
-    func updateUIView(_ uiView: RoomCaptureView, context: Context) {}
+    func updateUIView(_ uiView: RoomCaptureView, context: Context) {
+        // No updates needed
+    }
 }

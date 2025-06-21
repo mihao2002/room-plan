@@ -21,11 +21,12 @@ class RoomScanCoordinator: NSObject, RoomCaptureViewDelegate, NSSecureCoding {
     }
 
     func captureView(_ captureView: RoomCaptureView, didUpdate room: CapturedRoom) {
-         print("Detected objects count: \(room.objects.count)")
-         viewModel.roomCaptureView(captureView, didUpdate: room) // or update your VM here directly
+         print("✅ Room updated - detected objects count: \(room.objects.count)")
+         viewModel.roomCaptureView(captureView, didUpdate: room)
      }
 
      func captureView(_ captureView: RoomCaptureView, didFail error: Error) {
-         print("Capture failed: \(error.localizedDescription)")
+         print("❌ Room capture failed: \(error.localizedDescription)")
+         viewModel.roomCaptureView(captureView, didFail: error)
      }
 }
