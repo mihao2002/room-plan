@@ -302,13 +302,23 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
 
         let color = furnitureColors[furniture.type] ?? .systemGray
         
-        // Create a semi-transparent box for the furniture volume
-        let boxMesh = MeshResource.generateBox(size: furniture.dimensions)
-        var boxMaterial = SimpleMaterial()
-        boxMaterial.baseColor = .color(color.withAlphaComponent(0.4))
-        boxMaterial.metallic = .float(0.5)
-        boxMaterial.roughness = .float(0.5)
-        let boxEntity = ModelEntity(mesh: boxMesh, materials: [boxMaterial])
+        // As a diagnostic step, generate a sphere instead of a box.
+        // This helps isolate if the crash is specific to generateBox().
+        let avgDimension = (furniture.dimensions.x + furniture.dimensions.y + furniture.dimensions.z) / 3.0
+        let radius = avgDimension / 2.0
+        
+        guard radius > 0.05 else { // Minimum radius of 5cm
+            print("❌ Calculated radius is too small, skipping sphere generation: \(radius)")
+            return
+        }
+
+        // Create a semi-transparent sphere for the furniture volume
+        let sphereMesh = MeshResource.generateSphere(radius: radius)
+        var sphereMaterial = SimpleMaterial()
+        sphereMaterial.baseColor = .color(color.withAlphaComponent(0.4))
+        sphereMaterial.metallic = .float(0.5)
+        sphereMaterial.roughness = .float(0.5)
+        let sphereEntity = ModelEntity(mesh: sphereMesh, materials: [sphereMaterial])
 
         // Create a text label
         let textMesh = MeshResource.generateText(
@@ -317,13 +327,13 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
         var textMaterial = SimpleMaterial()
         textMaterial.baseColor = .color(.white)
         let textEntity = ModelEntity(mesh: textMesh, materials: [textMaterial])
-        // Center the text and position it above the box
+        // Center the text and position it above the sphere
         let textSize = textEntity.visualBounds(relativeTo: nil).extents
         textEntity.position.x = -textSize.x / 2
-        textEntity.position.y = furniture.dimensions.y / 2 + 0.1
+        textEntity.position.y = radius + 0.1
         
         let anchorEntity = AnchorEntity(world: furniture.position)
-        anchorEntity.addChild(boxEntity)
+        anchorEntity.addChild(sphereEntity)
         anchorEntity.addChild(textEntity)
         
         arView.scene.addAnchor(anchorEntity)
