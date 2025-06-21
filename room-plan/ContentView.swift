@@ -212,7 +212,7 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
             
             // 4. Create a ModelEntity and place it in the scene
             let modelEntity = ModelEntity(mesh: meshResource, materials: [material])
-            let anchorEntity = AnchorEntity(anchor: anchor)
+            let anchorEntity = AnchorEntity(world: anchor.transform)
             anchorEntity.addChild(modelEntity)
             arView.scene.addAnchor(anchorEntity)
 
