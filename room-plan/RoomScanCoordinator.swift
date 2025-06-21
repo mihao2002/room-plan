@@ -29,4 +29,9 @@ class RoomScanCoordinator: NSObject, RoomCaptureViewDelegate, NSSecureCoding {
          print("❌ Room capture failed: \(error.localizedDescription)")
          viewModel.roomCaptureView(captureView, didFail: error)
      }
+     
+     func captureViewDidStart(_ captureView: RoomCaptureView) {
+         print("🎥 RoomCaptureView did start")
+         viewModel.roomCaptureViewDidStart(captureView)
+     }
 }

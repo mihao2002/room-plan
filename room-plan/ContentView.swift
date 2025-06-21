@@ -1,21 +1,24 @@
 import SwiftUI
 import RoomPlan
 import RealityKit
+import ARKit
 
 class ViewModel: ObservableObject {
     @Published var detectedObjects: [CapturedRoom.Object] = []
-    @Published var projectedPoints: [CapturedRoom.Object: CGPoint] = [:]
     @Published var isScanning = false
     @Published var errorMessage: String?
+    @Published var debugInfo: String = "Initializing..."
 
     func start() {
         isScanning = true
         errorMessage = nil
+        debugInfo = "Starting room scan..."
         print("🟢 Starting room scan...")
     }
 
     func stop() {
         isScanning = false
+        debugInfo = "Stopped"
         print("🔴 Stopping room scan...")
     }
 
@@ -23,6 +26,7 @@ class ViewModel: ObservableObject {
     func roomCaptureView(_ roomCaptureView: RoomCaptureView, didUpdate room: CapturedRoom) {
         DispatchQueue.main.async {
             self.detectedObjects = room.objects
+            self.debugInfo = "Detected \(room.objects.count) objects"
             print("✅ Detected \(room.objects.count) objects")
         }
     }
@@ -30,7 +34,15 @@ class ViewModel: ObservableObject {
     func roomCaptureView(_ captureView: RoomCaptureView, didFail error: Error) {
         DispatchQueue.main.async {
             self.errorMessage = error.localizedDescription
+            self.debugInfo = "Error: \(error.localizedDescription)"
             print("❌ Room capture failed: \(error.localizedDescription)")
+        }
+    }
+    
+    func roomCaptureViewDidStart(_ captureView: RoomCaptureView) {
+        DispatchQueue.main.async {
+            self.debugInfo = "Camera started successfully"
+            print("🎥 Camera feed started")
         }
     }
 }
@@ -52,12 +64,8 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            // Debug background to ensure view is visible
-            Color.black
-                .ignoresSafeArea()
-            
-            // RoomCaptureView will show the camera feed
-            RoomScanView(viewModel: vm)
+            // Try ARView approach first
+            ARScanView(viewModel: vm)
                 .ignoresSafeArea()
 
             // Debug overlay
@@ -79,6 +87,12 @@ struct ContentView: View {
                 
                 // Status and detected objects
                 VStack(spacing: 10) {
+                    Text("Debug: \(vm.debugInfo)")
+                        .foregroundColor(.yellow)
+                        .padding()
+                        .background(Color.black.opacity(0.7))
+                        .cornerRadius(8)
+                    
                     if let error = vm.errorMessage {
                         Text("Error: \(error)")
                             .foregroundColor(.red)
@@ -126,6 +140,67 @@ struct ContentView: View {
     }
 }
 
+struct ARScanView: UIViewRepresentable {
+    @ObservedObject var viewModel: ViewModel
+
+    func makeCoordinator() -> ARScanCoordinator {
+        ARScanCoordinator(viewModel: viewModel)
+    }
+
+    func makeUIView(context: Context) -> ARView {
+        let arView = ARView(frame: .zero)
+        arView.session.delegate = context.coordinator
+        
+        // Configure AR session for room scanning
+        let configuration = ARWorldTrackingConfiguration()
+        configuration.planeDetection = [.horizontal, .vertical]
+        configuration.environmentTexturing = .automatic
+        
+        arView.session.run(configuration)
+        
+        print("🟢 ARView created and session started")
+        return arView
+    }
+
+    func updateUIView(_ uiView: ARView, context: Context) {
+        print("🔄 ARView updated")
+    }
+}
+
+class ARScanCoordinator: NSObject, ARSessionDelegate {
+    let viewModel: ViewModel
+    
+    init(viewModel: ViewModel) {
+        self.viewModel = viewModel
+    }
+    
+    func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        // This confirms the camera is working
+        DispatchQueue.main.async {
+            self.viewModel.debugInfo = "Camera frame updated"
+        }
+    }
+    
+    func session(_ session: ARSession, didFailWithError error: Error) {
+        DispatchQueue.main.async {
+            self.viewModel.errorMessage = error.localizedDescription
+            self.viewModel.debugInfo = "AR Session failed: \(error.localizedDescription)"
+        }
+    }
+    
+    func sessionWasInterrupted(_ session: ARSession) {
+        DispatchQueue.main.async {
+            self.viewModel.debugInfo = "AR Session interrupted"
+        }
+    }
+    
+    func sessionInterruptionEnded(_ session: ARSession) {
+        DispatchQueue.main.async {
+            self.viewModel.debugInfo = "AR Session resumed"
+        }
+    }
+}
+
 struct RoomScanView: UIViewRepresentable {
     @ObservedObject var viewModel: ViewModel
 
@@ -136,11 +211,16 @@ struct RoomScanView: UIViewRepresentable {
     func makeUIView(context: Context) -> RoomCaptureView {
         let view = RoomCaptureView()
         view.delegate = context.coordinator
+        
+        // Configure the view
+        view.isOpaque = false
+        view.backgroundColor = .clear
+        
         print("🟢 RoomCaptureView created")
         return view
     }
 
     func updateUIView(_ uiView: RoomCaptureView, context: Context) {
-        // No updates needed
+        print("🔄 RoomCaptureView updated")
     }
 }
