@@ -9,6 +9,8 @@ class RoomScanCoordinator: NSObject, RoomCaptureViewDelegate, NSSecureCoding {
 
     init(viewModel: ViewModel) {
         self.viewModel = viewModel
+        super.init()
+        print("🟢 RoomScanCoordinator initialized")
     }
 
     required convenience init?(coder: NSCoder) {
@@ -22,6 +24,7 @@ class RoomScanCoordinator: NSObject, RoomCaptureViewDelegate, NSSecureCoding {
 
     func captureView(_ captureView: RoomCaptureView, didUpdate room: CapturedRoom) {
          print("✅ Room updated - detected objects count: \(room.objects.count)")
+         print("📊 Room details: surfaces=\(room.surfaces.count), openings=\(room.openings.count)")
          viewModel.roomCaptureView(captureView, didUpdate: room)
      }
 
@@ -33,5 +36,9 @@ class RoomScanCoordinator: NSObject, RoomCaptureViewDelegate, NSSecureCoding {
      func captureViewDidStart(_ captureView: RoomCaptureView) {
          print("🎥 RoomCaptureView did start")
          viewModel.roomCaptureViewDidStart(captureView)
+     }
+     
+     func captureViewDidStop(_ captureView: RoomCaptureView) {
+         print("🛑 RoomCaptureView did stop")
      }
 }
