@@ -4,7 +4,7 @@
 set -e
 
 # Set your scheme and optional destination (edit as needed)
-SCHEME="MyApp"  # <-- Replace with your scheme name
+SCHEME="room-plan"  # <-- Replace with your scheme name
 DESTINATION="platform=iOS Simulator,name=iPhone 14"  # Optional for specific simulator
 
 # Output file
