@@ -72,11 +72,6 @@ struct ContentView: View {
             // Camera view with AVFoundation
             CameraView(viewModel: vm)
                 .ignoresSafeArea()
-            
-            // Invisible RoomCaptureView for furniture detection
-            RoomScanView(viewModel: vm)
-                .allowsHitTesting(false)
-                .opacity(0.01) // Nearly invisible but still active
 
             // Debug overlay
             VStack {
@@ -190,35 +185,11 @@ struct CameraView: UIViewRepresentable {
     }
 }
 
-// RoomPlan scanning view
-struct RoomScanView: UIViewRepresentable {
-    @ObservedObject var viewModel: ViewModel
-
-    func makeCoordinator() -> RoomScanCoordinator {
-        RoomScanCoordinator(viewModel: viewModel)
-    }
-
-    func makeUIView(context: Context) -> RoomCaptureView {
-        let view = RoomCaptureView()
-        view.delegate = context.coordinator
-        
-        // Configure RoomCaptureView for scanning
-        view.isOpaque = false
-        view.backgroundColor = .clear
-        
-        print("🟢 RoomCaptureView created for scanning")
-        return view
-    }
-
-    func updateUIView(_ uiView: RoomCaptureView, context: Context) {
-        print("🔄 RoomCaptureView updated")
-    }
-}
-
 class CameraCoordinator: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     let viewModel: ViewModel
     var previewLayer: AVCaptureVideoPreviewLayer?
     private var captureSession: AVCaptureSession?
+    private var roomCaptureSession: RoomCaptureSession?
     
     init(viewModel: ViewModel) {
         self.viewModel = viewModel
@@ -260,6 +231,11 @@ class CameraCoordinator: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate 
                 DispatchQueue.main.async {
                     self.viewModel.setDebugInfo("Camera session started")
                 }
+                
+                // Start RoomPlan scanning after camera is ready
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    self.startRoomPlanScanning()
+                }
             }
             
         } catch {
@@ -272,5 +248,35 @@ class CameraCoordinator: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate 
         DispatchQueue.main.async {
             self.viewModel.setDebugInfo("Camera feed active")
         }
+    }
+    
+    private func startRoomPlanScanning() {
+        guard roomCaptureSession == nil else { return }
+        
+        do {
+            roomCaptureSession = try RoomCaptureSession()
+            roomCaptureSession?.delegate = self
+            
+            DispatchQueue.main.async {
+                self.viewModel.setDebugInfo("RoomPlan scanning started")
+            }
+            
+            print("🎥 RoomPlan scanning started")
+        } catch {
+            DispatchQueue.main.async {
+                self.viewModel.setError("Failed to start RoomPlan: \(error.localizedDescription)")
+            }
+            print("❌ Failed to start RoomPlan: \(error)")
+        }
+    }
+}
+
+extension CameraCoordinator: RoomCaptureSessionDelegate {
+    func captureSession(_ session: RoomCaptureSession, didUpdate room: CapturedRoom) {
+        viewModel.updateDetectedObjects(room.objects)
+    }
+    
+    func captureSession(_ session: RoomCaptureSession, didFailWithError error: Error) {
+        viewModel.setError("RoomPlan failed: \(error.localizedDescription)")
     }
 }
