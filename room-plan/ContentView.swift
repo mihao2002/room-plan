@@ -1,6 +1,6 @@
 import SwiftUI
 import ARKit
-import SceneKit
+import RealityKit
 
 class ViewModel: ObservableObject {
     @Published var isScanning = false
@@ -44,7 +44,7 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            // AR view with mesh wireframe visualization
+            // AR view with built-in wireframe visualization
             ARMeshView(viewModel: vm)
                 .ignoresSafeArea()
 
@@ -105,7 +105,7 @@ struct ContentView: View {
     }
 }
 
-// AR view with SceneKit mesh wireframe visualization
+// AR view with built-in wireframe visualization
 struct ARMeshView: UIViewRepresentable {
     @ObservedObject var viewModel: ViewModel
 
@@ -113,10 +113,9 @@ struct ARMeshView: UIViewRepresentable {
         ARMeshCoordinator(viewModel: viewModel)
     }
 
-    func makeUIView(context: Context) -> ARSCNView {
-        let arView = ARSCNView(frame: .zero)
+    func makeUIView(context: Context) -> ARView {
+        let arView = ARView(frame: .zero)
         arView.session.delegate = context.coordinator
-        arView.delegate = context.coordinator
         
         context.coordinator.setARView(arView)
         
@@ -137,23 +136,23 @@ struct ARMeshView: UIViewRepresentable {
         return arView
     }
 
-    func updateUIView(_ uiView: ARSCNView, context: Context) {
+    func updateUIView(_ uiView: ARView, context: Context) {
         // Leave empty to avoid unnecessary updates
     }
 }
 
-// AR Coordinator for SceneKit mesh wireframe visualization
-class ARMeshCoordinator: NSObject, ARSessionDelegate, ARSCNViewDelegate {
+// AR Coordinator for mesh visualization
+class ARMeshCoordinator: NSObject, ARSessionDelegate {
     @ObservedObject var viewModel: ViewModel
-    private weak var arView: ARSCNView?
-    private var meshNodes: [UUID: SCNNode] = [:]
+    private weak var arView: ARView?
+    private var meshEntities: [UUID: AnchorEntity] = [:]
 
     init(viewModel: ViewModel) {
         self.viewModel = viewModel
         super.init()
     }
     
-    func setARView(_ arView: ARSCNView) {
+    func setARView(_ arView: ARView) {
         self.arView = arView
     }
     
@@ -175,9 +174,9 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate, ARSCNViewDelegate {
     
     func session(_ session: ARSession, didRemove anchors: [ARAnchor]) {
         for anchor in anchors {
-            if let meshAnchor = anchor as? ARMeshAnchor, let existingNode = meshNodes[meshAnchor.identifier] {
-                existingNode.removeFromParentNode()
-                meshNodes.removeValue(forKey: meshAnchor.identifier)
+            if let meshAnchor = anchor as? ARMeshAnchor, let existingAnchor = meshEntities[meshAnchor.identifier] {
+                arView?.scene.removeAnchor(existingAnchor)
+                meshEntities.removeValue(forKey: meshAnchor.identifier)
             }
         }
     }
@@ -199,40 +198,31 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate, ARSCNViewDelegate {
         DispatchQueue.main.async {
             guard let arView = self.arView else { return }
 
-            // Remove old mesh node if it exists
-            if let existingNode = self.meshNodes[anchor.identifier] {
-                existingNode.removeFromParentNode()
+            // Remove old mesh entity if it exists
+            if let existingAnchor = self.meshEntities[anchor.identifier] {
+                arView.scene.removeAnchor(existingAnchor)
             }
 
             // Create a simple sphere at the anchor position
-            let sphere = SCNSphere(radius: 0.1)
-            let material = SCNMaterial()
-            material.diffuse.contents = UIColor.cyan
-            material.lightingModel = .constant
+            let sphereMesh = MeshResource.generateSphere(radius: 0.1)
+            var material = SimpleMaterial()
+            material.baseColor = .color(.cyan)
             
-            sphere.materials = [material]
+            let sphereEntity = ModelEntity(mesh: sphereMesh, materials: [material])
             
-            // Create SCNNode with the sphere
-            let meshNode = SCNNode(geometry: sphere)
-            
-            // The anchor's transform gives us the world position
-            // Let's try positioning the sphere at the anchor's center
-            let anchorPosition = anchor.transform.columns.3
-            meshNode.position = SCNVector3(anchorPosition.x, anchorPosition.y, anchorPosition.z)
+            // Create anchor entity at the mesh anchor's position
+            let anchorEntity = AnchorEntity(world: anchor.transform)
+            anchorEntity.addChild(sphereEntity)
             
             // Add to scene
-            arView.scene.rootNode.addChildNode(meshNode)
-            self.meshNodes[anchor.identifier] = meshNode
+            arView.scene.addAnchor(anchorEntity)
+            self.meshEntities[anchor.identifier] = anchorEntity
             
             // Update mesh count and debug info
-            self.viewModel.updateMeshCount(self.meshNodes.count)
-            self.viewModel.setDebugInfo("Anchor: \(anchor.geometry.vertices.count) vertices at (\(String(format: "%.2f", anchorPosition.x)), \(String(format: "%.2f", anchorPosition.y)), \(String(format: "%.2f", anchorPosition.z)))")
+            self.viewModel.updateMeshCount(self.meshEntities.count)
+            let position = anchor.transform.columns.3
+            self.viewModel.setDebugInfo("Anchor: \(anchor.geometry.vertices.count) vertices at (\(String(format: "%.2f", position.x)), \(String(format: "%.2f", position.y)), \(String(format: "%.2f", position.z)))")
         }
-    }
-    
-    private func createSCNGeometry(from geometry: ARMeshGeometry) -> SCNGeometry? {
-        // This function is no longer used but kept for reference
-        return nil
     }
 }
 
