@@ -204,66 +204,34 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate, ARSCNViewDelegate {
                 existingNode.removeFromParentNode()
             }
 
-            // Create SceneKit geometry from ARKit mesh
-            guard let scnGeometry = self.createSCNGeometry(from: anchor.geometry) else {
-                print("❌ Failed to create SCNGeometry for anchor \(anchor.identifier)")
-                return
-            }
-            
-            // Create a wireframe material
+            // Create a simple sphere at the anchor position instead of complex mesh
+            let sphere = SCNSphere(radius: 0.1)
             let material = SCNMaterial()
-            material.fillMode = .lines
             material.diffuse.contents = UIColor.cyan
             material.lightingModel = .constant
             
-            // Apply material to geometry
-            scnGeometry.materials = [material]
+            sphere.materials = [material]
             
-            // Create SCNNode with the geometry
-            let meshNode = SCNNode(geometry: scnGeometry)
+            // Create SCNNode with the sphere
+            let meshNode = SCNNode(geometry: sphere)
             
-            // For debugging: don't apply transform yet
-            // meshNode.simdTransform = anchor.transform
+            // Apply the anchor's transform
+            meshNode.simdTransform = anchor.transform
             
             // Add to scene
             arView.scene.rootNode.addChildNode(meshNode)
             self.meshNodes[anchor.identifier] = meshNode
             
-            // Add a small sphere at the anchor position for debugging
-            let debugSphere = SCNSphere(radius: 0.05)
-            let debugMaterial = SCNMaterial()
-            debugMaterial.diffuse.contents = UIColor.red
-            debugSphere.materials = [debugMaterial]
-            
-            let debugNode = SCNNode(geometry: debugSphere)
-            debugNode.simdTransform = anchor.transform
-            arView.scene.rootNode.addChildNode(debugNode)
-            
             // Update mesh count and debug info
             self.viewModel.updateMeshCount(self.meshNodes.count)
             let position = anchor.transform.columns.3
-            self.viewModel.setDebugInfo("Mesh: \(anchor.geometry.vertices.count) vertices at (\(String(format: "%.2f", position.x)), \(String(format: "%.2f", position.y)), \(String(format: "%.2f", position.z)))")
+            self.viewModel.setDebugInfo("Anchor: \(anchor.geometry.vertices.count) vertices at (\(String(format: "%.2f", position.x)), \(String(format: "%.2f", position.y)), \(String(format: "%.2f", position.z)))")
         }
     }
     
     private func createSCNGeometry(from geometry: ARMeshGeometry) -> SCNGeometry? {
-        let vertices = geometry.vertices.asSIMD3(ofType: SIMD3<Float>.self)
-        let indices = geometry.faces.asUInt32()
-        
-        // Convert vertices to SCNVector3
-        let scnVertices = vertices.map { SCNVector3($0.x, $0.y, $0.z) }
-        
-        // Create SCNGeometrySource from vertices
-        let vertexSource = SCNGeometrySource(vertices: scnVertices)
-        
-        // Create SCNGeometryElement from indices
-        let element = SCNGeometryElement(
-            indices: indices,
-            primitiveType: .triangles
-        )
-        
-        // Create SCNGeometry
-        return SCNGeometry(sources: [vertexSource], elements: [element])
+        // This function is no longer used but kept for reference
+        return nil
     }
 }
 
