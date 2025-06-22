@@ -191,48 +191,23 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
                 arView.scene.removeAnchor(existingAnchor)
             }
 
-            // Create simple mesh from the geometry
-            guard let meshResource = self.createSimpleMesh(from: anchor.geometry) else {
-                print("❌ Failed to create mesh for anchor \(anchor.identifier)")
-                self.viewModel.setError("Failed to create mesh")
-                return
-            }
-            
-            // Create a semi-transparent material
-            var material = SimpleMaterial()
-            material.baseColor = .color(UIColor.systemGreen.withAlphaComponent(0.3))
-            
-            // Create a ModelEntity
-            let modelEntity = ModelEntity(mesh: meshResource, materials: [material])
-            
-            // Create a new AnchorEntity to hold the model
+            // Create a simple anchor entity
             let anchorEntity = AnchorEntity(world: anchor.transform)
-            anchorEntity.addChild(modelEntity)
+            
+            // Add a simple sphere at the center of the mesh to visualize it
+            let sphereMesh = MeshResource.generateSphere(radius: 0.1)
+            var material = SimpleMaterial()
+            material.baseColor = .color(.red)
+            
+            let sphereEntity = ModelEntity(mesh: sphereMesh, materials: [material])
+            anchorEntity.addChild(sphereEntity)
+            
             arView.scene.addAnchor(anchorEntity)
-
-            // Store the new anchor entity
             self.meshEntities[anchor.identifier] = anchorEntity
             
             // Update mesh count and debug info
             self.viewModel.updateMeshCount(self.meshEntities.count)
-            self.viewModel.setDebugInfo("Mesh: \(anchor.geometry.vertices.count) vertices, \(anchor.geometry.faces.count) faces")
-        }
-    }
-    
-    private func createSimpleMesh(from geometry: ARMeshGeometry) -> MeshResource? {
-        let vertices = geometry.vertices.asSIMD3(ofType: SIMD3<Float>.self)
-        let indices = geometry.faces.asUInt32()
-        
-        // Create simple mesh descriptor
-        var descriptor = MeshDescriptor(name: "simple")
-        descriptor.positions = MeshBuffers.Positions(vertices)
-        descriptor.primitives = .triangles(indices)
-        
-        do {
-            return try MeshResource.generate(from: [descriptor])
-        } catch {
-            print("❌ Error generating mesh: \(error)")
-            return nil
+            self.viewModel.setDebugInfo("Mesh anchor: \(anchor.geometry.vertices.count) vertices at \(anchor.transform.columns.3)")
         }
     }
 }
