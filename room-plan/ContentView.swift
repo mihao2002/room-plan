@@ -204,7 +204,7 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate, ARSCNViewDelegate {
                 existingNode.removeFromParentNode()
             }
 
-            // Create a simple sphere at the anchor position instead of complex mesh
+            // Create a simple sphere at the anchor position
             let sphere = SCNSphere(radius: 0.1)
             let material = SCNMaterial()
             material.diffuse.contents = UIColor.cyan
@@ -215,8 +215,10 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate, ARSCNViewDelegate {
             // Create SCNNode with the sphere
             let meshNode = SCNNode(geometry: sphere)
             
-            // Apply the anchor's transform
-            meshNode.simdTransform = anchor.transform
+            // The anchor's transform gives us the world position
+            // Let's try positioning the sphere at the anchor's center
+            let anchorPosition = anchor.transform.columns.3
+            meshNode.position = SCNVector3(anchorPosition.x, anchorPosition.y, anchorPosition.z)
             
             // Add to scene
             arView.scene.rootNode.addChildNode(meshNode)
@@ -224,8 +226,7 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate, ARSCNViewDelegate {
             
             // Update mesh count and debug info
             self.viewModel.updateMeshCount(self.meshNodes.count)
-            let position = anchor.transform.columns.3
-            self.viewModel.setDebugInfo("Anchor: \(anchor.geometry.vertices.count) vertices at (\(String(format: "%.2f", position.x)), \(String(format: "%.2f", position.y)), \(String(format: "%.2f", position.z)))")
+            self.viewModel.setDebugInfo("Anchor: \(anchor.geometry.vertices.count) vertices at (\(String(format: "%.2f", anchorPosition.x)), \(String(format: "%.2f", anchorPosition.y)), \(String(format: "%.2f", anchorPosition.z)))")
         }
     }
     
