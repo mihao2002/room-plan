@@ -224,9 +224,9 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
         let vertices = geometry.vertices.asSIMD3(ofType: SIMD3<Float>.self)
         let indices = geometry.faces.asUInt32()
         
-        // Create edges from triangles
-        var edgeVertices: [SIMD3<Float>] = []
-        var edgeIndices: [UInt32] = []
+        // Create thin triangles that look like wireframes
+        var wireframeVertices: [SIMD3<Float>] = []
+        var wireframeIndices: [UInt32] = []
         
         // Process triangles in groups of 3 indices
         for i in stride(from: 0, to: indices.count, by: 3) {
@@ -236,18 +236,33 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
             let v1 = vertices[Int(indices[i + 1])]
             let v2 = vertices[Int(indices[i + 2])]
             
-            // Add the three edges of this triangle
-            edgeVertices.append(contentsOf: [v0, v1, v1, v2, v2, v0])
+            // Calculate triangle normal for offsetting
+            let edge1 = v1 - v0
+            let edge2 = v2 - v0
+            let normal = normalize(cross(edge1, edge2))
             
-            // Add indices for the edges (each edge is a line segment)
-            let baseIndex = UInt32(edgeIndices.count)
-            edgeIndices.append(contentsOf: [baseIndex, baseIndex + 1, baseIndex + 2, baseIndex + 3, baseIndex + 4, baseIndex + 5])
+            // Create thin triangles by offsetting vertices slightly
+            let offset: Float = 0.001 // 1mm offset
+            let v0Offset = v0 + normal * offset
+            let v1Offset = v1 + normal * offset
+            let v2Offset = v2 + normal * offset
+            
+            // Add both front and back faces for visibility
+            let baseIndex = UInt32(wireframeVertices.count)
+            
+            // Front face
+            wireframeVertices.append(contentsOf: [v0Offset, v1Offset, v2Offset])
+            wireframeIndices.append(contentsOf: [baseIndex, baseIndex + 1, baseIndex + 2])
+            
+            // Back face (flipped)
+            wireframeVertices.append(contentsOf: [v0Offset, v2Offset, v1Offset])
+            wireframeIndices.append(contentsOf: [baseIndex + 3, baseIndex + 4, baseIndex + 5])
         }
         
         // Create mesh descriptor for wireframe
         var descriptor = MeshDescriptor(name: "wireframe")
-        descriptor.positions = MeshBuffers.Positions(edgeVertices)
-        descriptor.primitives = .lines(edgeIndices)
+        descriptor.positions = MeshBuffers.Positions(wireframeVertices)
+        descriptor.primitives = .triangles(wireframeIndices)
         
         return try MeshResource.generate(from: [descriptor])
     }
@@ -269,6 +284,21 @@ extension SIMD3: SIMD3Initializable where Scalar == Float {
     init(_ val: SIMD3<Float>) {
         self = val
     }
+}
+
+// Math helper functions
+func normalize(_ vector: SIMD3<Float>) -> SIMD3<Float> {
+    let length = sqrt(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z)
+    guard length > 0 else { return SIMD3<Float>(0, 0, 0) }
+    return vector / length
+}
+
+func cross(_ a: SIMD3<Float>, _ b: SIMD3<Float>) -> SIMD3<Float> {
+    return SIMD3<Float>(
+        a.y * b.z - a.z * b.y,
+        a.z * b.x - a.x * b.z,
+        a.x * b.y - a.y * b.x
+    )
 }
 
 extension ARGeometryElement {
