@@ -191,36 +191,34 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
                 arView.scene.removeAnchor(existingAnchor)
             }
 
-            do {
-                // Create wireframe geometry from the mesh
-                let wireframeMesh = self.createWireframeMesh(from: anchor.geometry)
-                
-                // Create a wireframe material
-                var material = SimpleMaterial()
-                material.baseColor = .color(.cyan)
-                
-                // Create a ModelEntity
-                let modelEntity = ModelEntity(mesh: wireframeMesh, materials: [material])
-                
-                // Create a new AnchorEntity to hold the model
-                let anchorEntity = AnchorEntity(world: anchor.transform)
-                anchorEntity.addChild(modelEntity)
-                arView.scene.addAnchor(anchorEntity)
-
-                // Store the new anchor entity
-                self.meshEntities[anchor.identifier] = anchorEntity
-                
-                // Update mesh count
-                self.viewModel.updateMeshCount(self.meshEntities.count)
-                
-            } catch {
-                print("❌ Error creating mesh for anchor \(anchor.identifier): \(error)")
-                self.viewModel.setError("Mesh creation failed: \(error.localizedDescription)")
+            // Create wireframe geometry from the mesh
+            guard let wireframeMesh = self.createWireframeMesh(from: anchor.geometry) else {
+                print("❌ Failed to create wireframe mesh for anchor \(anchor.identifier)")
+                self.viewModel.setError("Failed to create wireframe mesh")
+                return
             }
+            
+            // Create a wireframe material
+            var material = SimpleMaterial()
+            material.baseColor = .color(.cyan)
+            
+            // Create a ModelEntity
+            let modelEntity = ModelEntity(mesh: wireframeMesh, materials: [material])
+            
+            // Create a new AnchorEntity to hold the model
+            let anchorEntity = AnchorEntity(world: anchor.transform)
+            anchorEntity.addChild(modelEntity)
+            arView.scene.addAnchor(anchorEntity)
+
+            // Store the new anchor entity
+            self.meshEntities[anchor.identifier] = anchorEntity
+            
+            // Update mesh count
+            self.viewModel.updateMeshCount(self.meshEntities.count)
         }
     }
     
-    private func createWireframeMesh(from geometry: ARMeshGeometry) -> MeshResource {
+    private func createWireframeMesh(from geometry: ARMeshGeometry) -> MeshResource? {
         let vertices = geometry.vertices.asSIMD3(ofType: SIMD3<Float>.self)
         let indices = geometry.faces.asUInt32()
         
@@ -264,7 +262,12 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
         descriptor.positions = MeshBuffers.Positions(wireframeVertices)
         descriptor.primitives = .triangles(wireframeIndices)
         
-        return try MeshResource.generate(from: [descriptor])
+        do {
+            return try MeshResource.generate(from: [descriptor])
+        } catch {
+            print("❌ Error generating wireframe mesh: \(error)")
+            return nil
+        }
     }
 }
 
