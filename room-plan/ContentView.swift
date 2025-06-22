@@ -191,19 +191,19 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
                 arView.scene.removeAnchor(existingAnchor)
             }
 
-            // Create wireframe geometry from the mesh
-            guard let wireframeMesh = self.createWireframeMesh(from: anchor.geometry) else {
-                print("❌ Failed to create wireframe mesh for anchor \(anchor.identifier)")
-                self.viewModel.setError("Failed to create wireframe mesh")
+            // Create simple mesh from the geometry
+            guard let meshResource = self.createSimpleMesh(from: anchor.geometry) else {
+                print("❌ Failed to create mesh for anchor \(anchor.identifier)")
+                self.viewModel.setError("Failed to create mesh")
                 return
             }
             
-            // Create a wireframe material
+            // Create a semi-transparent material
             var material = SimpleMaterial()
-            material.baseColor = .color(.cyan)
+            material.baseColor = .color(UIColor.systemGreen.withAlphaComponent(0.3))
             
             // Create a ModelEntity
-            let modelEntity = ModelEntity(mesh: wireframeMesh, materials: [material])
+            let modelEntity = ModelEntity(mesh: meshResource, materials: [material])
             
             // Create a new AnchorEntity to hold the model
             let anchorEntity = AnchorEntity(world: anchor.transform)
@@ -213,59 +213,25 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
             // Store the new anchor entity
             self.meshEntities[anchor.identifier] = anchorEntity
             
-            // Update mesh count
+            // Update mesh count and debug info
             self.viewModel.updateMeshCount(self.meshEntities.count)
+            self.viewModel.setDebugInfo("Mesh: \(anchor.geometry.vertices.count) vertices, \(anchor.geometry.faces.count) faces")
         }
     }
     
-    private func createWireframeMesh(from geometry: ARMeshGeometry) -> MeshResource? {
+    private func createSimpleMesh(from geometry: ARMeshGeometry) -> MeshResource? {
         let vertices = geometry.vertices.asSIMD3(ofType: SIMD3<Float>.self)
         let indices = geometry.faces.asUInt32()
         
-        // Create thin triangles that look like wireframes
-        var wireframeVertices: [SIMD3<Float>] = []
-        var wireframeIndices: [UInt32] = []
-        
-        // Process triangles in groups of 3 indices
-        for i in stride(from: 0, to: indices.count, by: 3) {
-            guard i + 2 < indices.count else { break }
-            
-            let v0 = vertices[Int(indices[i])]
-            let v1 = vertices[Int(indices[i + 1])]
-            let v2 = vertices[Int(indices[i + 2])]
-            
-            // Calculate triangle normal for offsetting
-            let edge1 = v1 - v0
-            let edge2 = v2 - v0
-            let normal = normalize(cross(edge1, edge2))
-            
-            // Create thin triangles by offsetting vertices slightly
-            let offset: Float = 0.001 // 1mm offset
-            let v0Offset = v0 + normal * offset
-            let v1Offset = v1 + normal * offset
-            let v2Offset = v2 + normal * offset
-            
-            // Add both front and back faces for visibility
-            let baseIndex = UInt32(wireframeVertices.count)
-            
-            // Front face
-            wireframeVertices.append(contentsOf: [v0Offset, v1Offset, v2Offset])
-            wireframeIndices.append(contentsOf: [baseIndex, baseIndex + 1, baseIndex + 2])
-            
-            // Back face (flipped)
-            wireframeVertices.append(contentsOf: [v0Offset, v2Offset, v1Offset])
-            wireframeIndices.append(contentsOf: [baseIndex + 3, baseIndex + 4, baseIndex + 5])
-        }
-        
-        // Create mesh descriptor for wireframe
-        var descriptor = MeshDescriptor(name: "wireframe")
-        descriptor.positions = MeshBuffers.Positions(wireframeVertices)
-        descriptor.primitives = .triangles(wireframeIndices)
+        // Create simple mesh descriptor
+        var descriptor = MeshDescriptor(name: "simple")
+        descriptor.positions = MeshBuffers.Positions(vertices)
+        descriptor.primitives = .triangles(indices)
         
         do {
             return try MeshResource.generate(from: [descriptor])
         } catch {
-            print("❌ Error generating wireframe mesh: \(error)")
+            print("❌ Error generating mesh: \(error)")
             return nil
         }
     }
