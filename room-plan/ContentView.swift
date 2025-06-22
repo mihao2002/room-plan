@@ -200,6 +200,7 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate, ARSCNViewDelegate {
     private func updateMesh(anchor: ARMeshAnchor) {
         DispatchQueue.main.async {
             guard let arView = self.arView, let device = self.device else { return }
+            guard let camera = arView.session.currentFrame?.camera else { return }
 
             // Remove old mesh node if it exists
             if let existingNode = self.meshNodes[anchor.identifier] {
@@ -207,7 +208,7 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate, ARSCNViewDelegate {
             }
 
             // Convert ARMeshAnchor geometry to MDLMesh
-            let mdlMesh = anchor.geometry.toMDLMesh(device: device)
+            let mdlMesh = anchor.geometry.toMDLMesh(device: device,camera: camera, modelMatrix: anchor.transform)
             guard let scnGeometry = Self.scnGeometry(from: mdlMesh) else { return }
             let material = SCNMaterial()
             material.fillMode = .lines // Wireframe
