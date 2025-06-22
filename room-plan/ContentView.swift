@@ -123,16 +123,15 @@ struct ARMeshView: UIViewRepresentable {
         let configuration = ARWorldTrackingConfiguration()
         configuration.planeDetection = [.horizontal, .vertical]
         configuration.environmentTexturing = .automatic
-        configuration.sceneReconstruction = .meshWithClassification
         
-        //if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
-        //    configuration.sceneReconstruction = .mesh
-        //}
+        if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
+            configuration.sceneReconstruction = .mesh
+        }
         
         arView.session.run(configuration)
         
-        // Disable debug options for now
-        arView.debugOptions = []
+        // Enable ARView's built-in mesh visualization
+        arView.debugOptions = [.showSceneUnderstanding]
         
         return arView
     }
