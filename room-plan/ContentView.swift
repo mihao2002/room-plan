@@ -131,8 +131,8 @@ struct ARMeshView: UIViewRepresentable {
         
         arView.session.run(configuration)
         
-        // Enable SceneKit debug options to see wireframes
-        arView.debugOptions = [.showWireframe]
+        // Disable default mesh visualization to see only our custom wireframes
+        arView.debugOptions = []
         
         return arView
     }
@@ -222,8 +222,8 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate, ARSCNViewDelegate {
             // Create SCNNode with the geometry
             let meshNode = SCNNode(geometry: scnGeometry)
             
-            // Set the node's transform to match the anchor's world transform
-            meshNode.simdTransform = anchor.transform
+            // For debugging: don't apply transform yet
+            // meshNode.simdTransform = anchor.transform
             
             // Add to scene
             arView.scene.rootNode.addChildNode(meshNode)
@@ -250,8 +250,11 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate, ARSCNViewDelegate {
         let vertices = geometry.vertices.asSIMD3(ofType: SIMD3<Float>.self)
         let indices = geometry.faces.asUInt32()
         
+        // Convert vertices to SCNVector3
+        let scnVertices = vertices.map { SCNVector3($0.x, $0.y, $0.z) }
+        
         // Create SCNGeometrySource from vertices
-        let vertexSource = SCNGeometrySource(vertices: vertices.map { SCNVector3($0.x, $0.y, $0.z) })
+        let vertexSource = SCNGeometrySource(vertices: scnVertices)
         
         // Create SCNGeometryElement from indices
         let element = SCNGeometryElement(
