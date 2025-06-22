@@ -131,8 +131,8 @@ struct ARMeshView: UIViewRepresentable {
         
         arView.session.run(configuration)
         
-        // Disable default mesh visualization to see only our custom wireframes
-        arView.debugOptions = []
+        // Enable ARView's built-in wireframe visualization
+        arView.debugOptions = [.showWireframe]
         
         return arView
     }
