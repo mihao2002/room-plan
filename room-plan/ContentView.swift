@@ -192,22 +192,15 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
             }
 
             do {
-                // Create a MeshDescriptor from the ARMeshGeometry
-                var descriptor = MeshDescriptor(name: "custom")
-                let positions = anchor.geometry.vertices.asSIMD3(ofType: SIMD3<Float>.self)
-                descriptor.positions = MeshBuffers.Positions(positions)
-                let indices = anchor.geometry.faces.asUInt32()
-                descriptor.primitives = .triangles(indices)
-
-                // Create a MeshResource from the descriptor
-                let meshResource = try MeshResource.generate(from: [descriptor])
-
+                // Create wireframe geometry from the mesh
+                let wireframeMesh = self.createWireframeMesh(from: anchor.geometry)
+                
                 // Create a wireframe material
                 var material = SimpleMaterial()
                 material.baseColor = .color(.cyan)
                 
                 // Create a ModelEntity
-                let modelEntity = ModelEntity(mesh: meshResource, materials: [material])
+                let modelEntity = ModelEntity(mesh: wireframeMesh, materials: [material])
                 
                 // Create a new AnchorEntity to hold the model
                 let anchorEntity = AnchorEntity(world: anchor.transform)
@@ -225,6 +218,38 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
                 self.viewModel.setError("Mesh creation failed: \(error.localizedDescription)")
             }
         }
+    }
+    
+    private func createWireframeMesh(from geometry: ARMeshGeometry) -> MeshResource {
+        let vertices = geometry.vertices.asSIMD3(ofType: SIMD3<Float>.self)
+        let indices = geometry.faces.asUInt32()
+        
+        // Create edges from triangles
+        var edgeVertices: [SIMD3<Float>] = []
+        var edgeIndices: [UInt32] = []
+        
+        // Process triangles in groups of 3 indices
+        for i in stride(from: 0, to: indices.count, by: 3) {
+            guard i + 2 < indices.count else { break }
+            
+            let v0 = vertices[Int(indices[i])]
+            let v1 = vertices[Int(indices[i + 1])]
+            let v2 = vertices[Int(indices[i + 2])]
+            
+            // Add the three edges of this triangle
+            edgeVertices.append(contentsOf: [v0, v1, v1, v2, v2, v0])
+            
+            // Add indices for the edges (each edge is a line segment)
+            let baseIndex = UInt32(edgeIndices.count)
+            edgeIndices.append(contentsOf: [baseIndex, baseIndex + 1, baseIndex + 2, baseIndex + 3, baseIndex + 4, baseIndex + 5])
+        }
+        
+        // Create mesh descriptor for wireframe
+        var descriptor = MeshDescriptor(name: "wireframe")
+        descriptor.positions = MeshBuffers.Positions(edgeVertices)
+        descriptor.primitives = .lines(edgeIndices)
+        
+        return try MeshResource.generate(from: [descriptor])
     }
 }
 
