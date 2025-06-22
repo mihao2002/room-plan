@@ -130,8 +130,8 @@ struct ARMeshView: UIViewRepresentable {
         
         arView.session.run(configuration)
         
-        // Enable ARView's built-in wireframe visualization
-        arView.debugOptions = [.showWireframe]
+        // Disable debug options for now
+        arView.debugOptions = []
         
         return arView
     }
