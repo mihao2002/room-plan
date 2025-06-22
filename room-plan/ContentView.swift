@@ -221,15 +221,28 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate, ARSCNViewDelegate {
             
             // Create SCNNode with the geometry
             let meshNode = SCNNode(geometry: scnGeometry)
+            
+            // Set the node's transform to match the anchor's world transform
             meshNode.simdTransform = anchor.transform
             
             // Add to scene
             arView.scene.rootNode.addChildNode(meshNode)
             self.meshNodes[anchor.identifier] = meshNode
             
+            // Add a small sphere at the anchor position for debugging
+            let debugSphere = SCNSphere(radius: 0.05)
+            let debugMaterial = SCNMaterial()
+            debugMaterial.diffuse.contents = UIColor.red
+            debugSphere.materials = [debugMaterial]
+            
+            let debugNode = SCNNode(geometry: debugSphere)
+            debugNode.simdTransform = anchor.transform
+            arView.scene.rootNode.addChildNode(debugNode)
+            
             // Update mesh count and debug info
             self.viewModel.updateMeshCount(self.meshNodes.count)
-            self.viewModel.setDebugInfo("Mesh: \(anchor.geometry.vertices.count) vertices, \(anchor.geometry.faces.count) faces")
+            let position = anchor.transform.columns.3
+            self.viewModel.setDebugInfo("Mesh: \(anchor.geometry.vertices.count) vertices at (\(String(format: "%.2f", position.x)), \(String(format: "%.2f", position.y)), \(String(format: "%.2f", position.z)))")
         }
     }
     
