@@ -200,7 +200,6 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate, ARSCNViewDelegate {
     private func updateMesh(anchor: ARMeshAnchor) {
         DispatchQueue.main.async {
             guard let arView = self.arView, let device = self.device else { return }
-            guard let camera = arView.session.currentFrame?.camera else { return }
 
             // Remove old mesh node if it exists
             if let existingNode = self.meshNodes[anchor.identifier] {
@@ -208,8 +207,8 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate, ARSCNViewDelegate {
             }
 
             // Convert ARMeshAnchor geometry to MDLMesh
-            let mdlMesh = anchor.geometry.toMDLMesh(device: device, camera: camera, modelMatrix: anchor.transform)
-            let scnGeometry = SCNGeometry(mdlMesh: mdlMesh)
+            let mdlMesh = anchor.geometry.toMDLMesh(device: device)
+            guard let scnGeometry = Self.scnGeometry(from: mdlMesh) else { return }
             let material = SCNMaterial()
             material.fillMode = .lines // Wireframe
             material.diffuse.contents = UIColor.cyan
@@ -227,6 +226,45 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate, ARSCNViewDelegate {
             let position = anchor.transform.columns.3
             self.viewModel.setDebugInfo("Mesh: \(anchor.geometry.vertices.count) vertices at (\(String(format: "%.2f", position.x)), \(String(format: "%.2f", position.y)), \(String(format: "%.2f", position.z)))")
         }
+    }
+
+    // Manual conversion from MDLMesh to SCNGeometry (iOS)
+    static func scnGeometry(from mdlMesh: MDLMesh) -> SCNGeometry? {
+        guard let vertexBuffer = mdlMesh.vertexBuffers.first else { return nil }
+        let vertexCount = mdlMesh.vertexCount
+
+        // Get position attribute
+        guard let positionAttribute = mdlMesh.vertexDescriptor.attributes[0] as? MDLVertexAttribute,
+              positionAttribute.format == .float3 else { return nil }
+
+        let vertexStride = (mdlMesh.vertexDescriptor.layouts[0] as? MDLVertexBufferLayout)?.stride ?? MemoryLayout<Float>.size * 3
+
+        let vertexSource = SCNGeometrySource(
+            buffer: vertexBuffer.buffer,
+            vertexFormat: .float3,
+            semantic: .vertex,
+            vertexCount: vertexCount,
+            dataOffset: positionAttribute.offset,
+            dataStride: vertexStride
+        )
+
+        // Get indices from the first submesh
+        guard let submesh = mdlMesh.submeshes?.firstObject as? MDLSubmesh,
+              let indexBuffer = submesh.indexBuffer else { return nil }
+
+        let indexCount = submesh.indexCount
+        let primitiveType: SCNGeometryPrimitiveType = .triangles
+        let bytesPerIndex = submesh.indexType == .uInt32 ? 4 : 2
+
+        let geometryElement = SCNGeometryElement(
+            buffer: indexBuffer.buffer,
+            primitiveType: primitiveType,
+            primitiveCount: indexCount / 3,
+            bytesPerIndex: bytesPerIndex
+        )
+
+        let geometry = SCNGeometry(sources: [vertexSource], elements: [geometryElement])
+        return geometry
     }
 }
 
