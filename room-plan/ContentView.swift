@@ -1,6 +1,6 @@
 import SwiftUI
-import RealityKit
 import ARKit
+import SceneKit
 
 class ViewModel: ObservableObject {
     @Published var isScanning = false
@@ -44,7 +44,7 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            // AR view with mesh visualization
+            // AR view with mesh wireframe visualization
             ARMeshView(viewModel: vm)
                 .ignoresSafeArea()
 
@@ -105,7 +105,7 @@ struct ContentView: View {
     }
 }
 
-// AR view with mesh visualization
+// AR view with SceneKit mesh wireframe visualization
 struct ARMeshView: UIViewRepresentable {
     @ObservedObject var viewModel: ViewModel
 
@@ -113,9 +113,10 @@ struct ARMeshView: UIViewRepresentable {
         ARMeshCoordinator(viewModel: viewModel)
     }
 
-    func makeUIView(context: Context) -> ARView {
-        let arView = ARView(frame: .zero)
+    func makeUIView(context: Context) -> ARSCNView {
+        let arView = ARSCNView(frame: .zero)
         arView.session.delegate = context.coordinator
+        arView.delegate = context.coordinator
         
         context.coordinator.setARView(arView)
         
@@ -130,29 +131,29 @@ struct ARMeshView: UIViewRepresentable {
         
         arView.session.run(configuration)
         
-        // Disable default mesh visualization to see only our custom wireframes
-        arView.debugOptions = []
+        // Enable SceneKit debug options to see wireframes
+        arView.debugOptions = [.showWireframe]
         
         return arView
     }
 
-    func updateUIView(_ uiView: ARView, context: Context) {
+    func updateUIView(_ uiView: ARSCNView, context: Context) {
         // Leave empty to avoid unnecessary updates
     }
 }
 
-// AR Coordinator for mesh wireframe visualization
-class ARMeshCoordinator: NSObject, ARSessionDelegate {
+// AR Coordinator for SceneKit mesh wireframe visualization
+class ARMeshCoordinator: NSObject, ARSessionDelegate, ARSCNViewDelegate {
     @ObservedObject var viewModel: ViewModel
-    private weak var arView: ARView?
-    private var meshEntities: [UUID: AnchorEntity] = [:]
+    private weak var arView: ARSCNView?
+    private var meshNodes: [UUID: SCNNode] = [:]
 
     init(viewModel: ViewModel) {
         self.viewModel = viewModel
         super.init()
     }
     
-    func setARView(_ arView: ARView) {
+    func setARView(_ arView: ARSCNView) {
         self.arView = arView
     }
     
@@ -174,11 +175,23 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
     
     func session(_ session: ARSession, didRemove anchors: [ARAnchor]) {
         for anchor in anchors {
-            if let meshAnchor = anchor as? ARMeshAnchor, let existingAnchor = meshEntities[meshAnchor.identifier] {
-                arView?.scene.removeAnchor(existingAnchor)
-                meshEntities.removeValue(forKey: meshAnchor.identifier)
+            if let meshAnchor = anchor as? ARMeshAnchor, let existingNode = meshNodes[meshAnchor.identifier] {
+                existingNode.removeFromParentNode()
+                meshNodes.removeValue(forKey: meshAnchor.identifier)
             }
         }
+    }
+    
+    func session(_ session: ARSession, didFailWithError error: Error) {
+        viewModel.setError(error.localizedDescription)
+    }
+    
+    func sessionWasInterrupted(_ session: ARSession) {
+        viewModel.setDebugInfo("AR Session interrupted")
+    }
+    
+    func sessionInterruptionEnded(_ session: ARSession) {
+        viewModel.setDebugInfo("AR Session resumed")
     }
 
     private func updateMesh(anchor: ARMeshAnchor) {
@@ -186,29 +199,55 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
         DispatchQueue.main.async {
             guard let arView = self.arView else { return }
 
-            // Remove old anchor entity if it exists
-            if let existingAnchor = self.meshEntities[anchor.identifier] {
-                arView.scene.removeAnchor(existingAnchor)
+            // Remove old mesh node if it exists
+            if let existingNode = self.meshNodes[anchor.identifier] {
+                existingNode.removeFromParentNode()
             }
 
-            // Create a simple anchor entity
-            let anchorEntity = AnchorEntity(world: anchor.transform)
+            // Create SceneKit geometry from ARKit mesh
+            guard let scnGeometry = self.createSCNGeometry(from: anchor.geometry) else {
+                print("❌ Failed to create SCNGeometry for anchor \(anchor.identifier)")
+                return
+            }
             
-            // Add a simple sphere at the center of the mesh to visualize it
-            let sphereMesh = MeshResource.generateSphere(radius: 0.1)
-            var material = SimpleMaterial()
-            material.baseColor = .color(.red)
+            // Create a wireframe material
+            let material = SCNMaterial()
+            material.fillMode = .lines
+            material.diffuse.contents = UIColor.cyan
+            material.lightingModel = .constant
             
-            let sphereEntity = ModelEntity(mesh: sphereMesh, materials: [material])
-            anchorEntity.addChild(sphereEntity)
+            // Apply material to geometry
+            scnGeometry.materials = [material]
             
-            arView.scene.addAnchor(anchorEntity)
-            self.meshEntities[anchor.identifier] = anchorEntity
+            // Create SCNNode with the geometry
+            let meshNode = SCNNode(geometry: scnGeometry)
+            meshNode.simdTransform = anchor.transform
+            
+            // Add to scene
+            arView.scene.rootNode.addChildNode(meshNode)
+            self.meshNodes[anchor.identifier] = meshNode
             
             // Update mesh count and debug info
-            self.viewModel.updateMeshCount(self.meshEntities.count)
-            self.viewModel.setDebugInfo("Mesh anchor: \(anchor.geometry.vertices.count) vertices at \(anchor.transform.columns.3)")
+            self.viewModel.updateMeshCount(self.meshNodes.count)
+            self.viewModel.setDebugInfo("Mesh: \(anchor.geometry.vertices.count) vertices, \(anchor.geometry.faces.count) faces")
         }
+    }
+    
+    private func createSCNGeometry(from geometry: ARMeshGeometry) -> SCNGeometry? {
+        let vertices = geometry.vertices.asSIMD3(ofType: SIMD3<Float>.self)
+        let indices = geometry.faces.asUInt32()
+        
+        // Create SCNGeometrySource from vertices
+        let vertexSource = SCNGeometrySource(vertices: vertices.map { SCNVector3($0.x, $0.y, $0.z) })
+        
+        // Create SCNGeometryElement from indices
+        let element = SCNGeometryElement(
+            indices: indices,
+            primitiveType: .triangles
+        )
+        
+        // Create SCNGeometry
+        return SCNGeometry(sources: [vertexSource], elements: [element])
     }
 }
 
@@ -230,21 +269,6 @@ extension SIMD3: SIMD3Initializable where Scalar == Float {
     }
 }
 
-// Math helper functions
-func normalize(_ vector: SIMD3<Float>) -> SIMD3<Float> {
-    let length = sqrt(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z)
-    guard length > 0 else { return SIMD3<Float>(0, 0, 0) }
-    return vector / length
-}
-
-func cross(_ a: SIMD3<Float>, _ b: SIMD3<Float>) -> SIMD3<Float> {
-    return SIMD3<Float>(
-        a.y * b.z - a.z * b.y,
-        a.z * b.x - a.x * b.z,
-        a.x * b.y - a.y * b.x
-    )
-}
-
 extension ARGeometryElement {
     func asUInt32() -> [UInt32] {
         let count = self.count * self.indexCountPerPrimitive
@@ -252,7 +276,7 @@ extension ARGeometryElement {
 
         // ARKit can provide indices in 16-bit or 32-bit format.
         // We need to handle both and convert to the UInt32 format
-        // required by MeshDescriptor.
+        // required by SCNGeometryElement.
         if self.bytesPerIndex == 4 {
             let pointer = buffer.contents().assumingMemoryBound(to: UInt32.self)
             let bufferPointer = UnsafeBufferPointer(start: pointer, count: count)
