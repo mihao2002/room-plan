@@ -44,14 +44,14 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            // AR view with camera feed and mesh visualization
+            // AR view with mesh visualization
             ARMeshView(viewModel: vm)
                 .ignoresSafeArea()
 
             // Debug overlay
             VStack {
                 HStack {
-                    Text("Custom Mesh Scanner")
+                    Text("Mesh Wireframe Debug")
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
@@ -130,8 +130,8 @@ struct ARMeshView: UIViewRepresentable {
         
         arView.session.run(configuration)
         
-        // Re-enable default mesh visualization to compare with our custom one
-        arView.debugOptions = [.showSceneUnderstanding]
+        // Disable default mesh visualization to see only our custom wireframes
+        arView.debugOptions = []
         
         return arView
     }
@@ -141,11 +141,10 @@ struct ARMeshView: UIViewRepresentable {
     }
 }
 
-// AR Coordinator for manual mesh visualization
+// AR Coordinator for mesh wireframe visualization
 class ARMeshCoordinator: NSObject, ARSessionDelegate {
     @ObservedObject var viewModel: ViewModel
     private weak var arView: ARView?
-    // Store the AnchorEntity to properly remove it from the scene later
     private var meshEntities: [UUID: AnchorEntity] = [:]
 
     init(viewModel: ViewModel) {
@@ -193,34 +192,37 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate {
             }
 
             do {
-                // 1. Create a MeshDescriptor from the ARMeshGeometry
+                // Create a MeshDescriptor from the ARMeshGeometry
                 var descriptor = MeshDescriptor(name: "custom")
                 let positions = anchor.geometry.vertices.asSIMD3(ofType: SIMD3<Float>.self)
                 descriptor.positions = MeshBuffers.Positions(positions)
                 let indices = anchor.geometry.faces.asUInt32()
                 descriptor.primitives = .triangles(indices)
 
-                // 2. Create a MeshResource from the descriptor
+                // Create a MeshResource from the descriptor
                 let meshResource = try MeshResource.generate(from: [descriptor])
 
-                // 3. Create a solid red material to compare with the default mesh
+                // Create a wireframe material
                 var material = SimpleMaterial()
-                material.baseColor = .color(.red)
+                material.baseColor = .color(.cyan)
                 
-                // 4. Create a ModelEntity and scale it down slightly
+                // Create a ModelEntity
                 let modelEntity = ModelEntity(mesh: meshResource, materials: [material])
-                modelEntity.scale *= 0.99 // Make it slightly smaller to see inside default mesh
                 
-                // 5. Create a new AnchorEntity to hold the model
+                // Create a new AnchorEntity to hold the model
                 let anchorEntity = AnchorEntity(world: anchor.transform)
                 anchorEntity.addChild(modelEntity)
                 arView.scene.addAnchor(anchorEntity)
 
-                // 6. Store the new anchor entity
+                // Store the new anchor entity
                 self.meshEntities[anchor.identifier] = anchorEntity
+                
+                // Update mesh count
+                self.viewModel.updateMeshCount(self.meshEntities.count)
                 
             } catch {
                 print("❌ Error creating mesh for anchor \(anchor.identifier): \(error)")
+                self.viewModel.setError("Mesh creation failed: \(error.localizedDescription)")
             }
         }
     }
