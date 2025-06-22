@@ -239,25 +239,30 @@ class ARMeshCoordinator: NSObject, ARSessionDelegate, ARSCNViewDelegate {
 
         let vertexStride = (mdlMesh.vertexDescriptor.layouts[0] as? MDLVertexBufferLayout)?.stride ?? MemoryLayout<Float>.size * 3
 
+        // Use .map().bytes to access the buffer data
+        let vertexData = Data(bytesNoCopy: vertexBuffer.map().bytes, count: vertexCount * vertexStride, deallocator: .none)
         let vertexSource = SCNGeometrySource(
-            buffer: vertexBuffer.buffer,
-            vertexFormat: .float3,
+            data: vertexData,
             semantic: .vertex,
-            vertexCount: vertexCount,
+            vectorCount: vertexCount,
+            usesFloatComponents: true,
+            componentsPerVector: 3,
+            bytesPerComponent: MemoryLayout<Float>.size,
             dataOffset: positionAttribute.offset,
             dataStride: vertexStride
         )
 
         // Get indices from the first submesh
         guard let submesh = mdlMesh.submeshes?.firstObject as? MDLSubmesh,
-              let indexBuffer = submesh.indexBuffer else { return nil }
+              let indexBuffer = submesh.indexBuffer as? MDLMeshBuffer else { return nil }
 
         let indexCount = submesh.indexCount
         let primitiveType: SCNGeometryPrimitiveType = .triangles
         let bytesPerIndex = submesh.indexType == .uInt32 ? 4 : 2
 
+        let indexData = Data(bytesNoCopy: indexBuffer.map().bytes, count: indexCount * bytesPerIndex, deallocator: .none)
         let geometryElement = SCNGeometryElement(
-            buffer: indexBuffer.buffer,
+            data: indexData,
             primitiveType: primitiveType,
             primitiveCount: indexCount / 3,
             bytesPerIndex: bytesPerIndex
